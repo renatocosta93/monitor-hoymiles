@@ -9,53 +9,50 @@ from datetime import datetime
 HOYMILES_USER = "renato93@gmail.com"
 HOYMILES_PASS = "mcosta295@"
 
-# SEUS DADOS DO TELEGRAM (coloque os dados reais entre as aspas):
+# SEUS DADOS DO TELEGRAM (preencha entre as aspas):
 TELEGRAM_BOT_TOKEN = "8946039720:AAF7U0QokemhGv_5iTzVj9L6IGB1C1kOvhE"
 TELEGRAM_CHAT_ID = "1020154663"
 
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+    "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148",
     "Content-Type": "application/json",
     "Accept": "application/json, text/plain, */*",
     "Origin": "https://global.hoymiles.com",
-    "Referer": "https://global.hoymiles.com/website/login"
+    "Referer": "https://global.hoymiles.com/"
 }
 
 def get_md5(texto):
     return hashlib.md5(texto.encode('utf-8')).hexdigest()
 
 def autenticar():
-    # Endpoints do ecossistema S-Miles Cloud novo e legado
+    # Rotas da API da Hoymiles
     rotas = [
-        "https://global.hoymiles.com/api/0/login",
-        "https://api.hoymiles.com/api/0/login",
-        "https://global.hoymiles.com/pvm/api/0/login",
-        "https://global.hoymiles.com/website/api/login"
+        "https://api.hoymiles.com/pvm/api/0/login",
+        "https://api.hoymiles.com/api/0/auth/login",
+        "https://api.hoymiles.com/pvm-api/0/login",
+        "https://api.hoymiles.net/pvm/api/0/login"
     ]
     
-    # Formatos de payload suportados pelo S-Miles
     payloads = [
         {"user_name": HOYMILES_USER, "password": get_md5(HOYMILES_PASS)},
-        {"account": HOYMILES_USER, "password": get_md5(HOYMILES_PASS)},
-        {"user_name": HOYMILES_USER, "password": HOYMILES_PASS},
-        {"account": HOYMILES_USER, "password": HOYMILES_PASS}
+        {"user_name": HOYMILES_USER, "password": HOYMILES_PASS}
     ]
     
     for url in rotas:
-        for payload in payloads:
+        for p in payloads:
             try:
-                res = requests.post(url, json=payload, headers=HEADERS, timeout=10)
+                res = requests.post(url, json=p, headers=HEADERS, timeout=15)
                 print(f"Testando {url} -> Status {res.status_code}")
                 if res.status_code == 200:
                     data_json = res.json()
-                    print(f"Resposta JSON: {data_json}")
+                    print(f"Resposta: {data_json}")
                     
-                    if data_json.get("status") in ["0", 0] or data_json.get("code") in ["0", 0]:
+                    if str(data_json.get("status")) == "0" or str(data_json.get("code")) == "0":
                         dados = data_json.get("data", {})
                         token = dados.get("token") or dados.get("token_id") or dados.get("access_token")
                         if token:
-                            base_url = url.replace("/login", "")
-                            print(f"Sucesso na URL: {base_url}")
+                            base_url = url.rsplit("/", 1)[0]
+                            print(f"Sucesso na rota base: {base_url}")
                             return token, base_url
             except Exception as e:
                 print(f"Erro em {url}: {e}")
@@ -102,7 +99,7 @@ def enviar_telegram(mensagem):
     }
     try:
         res = requests.post(url, json=payload, timeout=10)
-        print(f"Envio Telegram Status: {res.status_code}")
+        print(f"Envio Telegram: {res.status_code}")
     except Exception as e:
         print(f"Erro Telegram: {e}")
 
@@ -147,7 +144,7 @@ def main():
     msg += f"\n🌱 *Impacto:* `{co2} kg` CO₂ evitados"
 
     enviar_telegram(msg)
-    print("Sucesso!")
+    print("Processo concluído com sucesso!")
 
 if __name__ == "__main__":
     main()
