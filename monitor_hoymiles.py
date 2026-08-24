@@ -4,12 +4,11 @@ import hashlib
 from datetime import datetime
 
 # ==========================================
-# CONFIGURAÇÕES DA CONTA HOYMILES E TELEGRAM
+# CREDENCIAIS CONFIGURADAS
 # ==========================================
 HOYMILES_USER = "renato93@gmail.com"
 HOYMILES_PASS = "mcosta295@"
 
-# SEUS DADOS DO TELEGRAM (preencha entre as aspas):
 TELEGRAM_BOT_TOKEN = "8946039720:AAF7U0QokemhGv_5iTzVj9L6IGB1C1kOvhE"
 TELEGRAM_CHAT_ID = "1020154663"
 
@@ -25,12 +24,11 @@ def get_md5(texto):
     return hashlib.md5(texto.encode('utf-8')).hexdigest()
 
 def autenticar():
-    # Rotas da API da Hoymiles
     rotas = [
-        "https://api.hoymiles.com/pvm/api/0/login",
-        "https://api.hoymiles.com/api/0/auth/login",
-        "https://api.hoymiles.com/pvm-api/0/login",
-        "https://api.hoymiles.net/pvm/api/0/login"
+        "https://api.hoymiles.com/pvm/api/0/login/",
+        "https://ne-api.hoymiles.com/pvm/api/0/login/",
+        "https://global.hoymiles.com/pvm-api/0/login/",
+        "https://api.hoymiles.com/api/0/login/"
     ]
     
     payloads = [
@@ -51,7 +49,7 @@ def autenticar():
                         dados = data_json.get("data", {})
                         token = dados.get("token") or dados.get("token_id") or dados.get("access_token")
                         if token:
-                            base_url = url.rsplit("/", 1)[0]
+                            base_url = url.rstrip("/").rsplit("/", 1)[0]
                             print(f"Sucesso na rota base: {base_url}")
                             return token, base_url
             except Exception as e:
@@ -60,7 +58,7 @@ def autenticar():
     return None, None
 
 def obter_dados_usina(token, base_api):
-    url = f"{base_api}/station/select_station"
+    url = f"{base_api}/station/select_station/"
     headers = HEADERS.copy()
     headers["Authorization"] = token
     headers["token"] = token
@@ -76,7 +74,7 @@ def obter_dados_usina(token, base_api):
         return None
 
 def obter_microinversores(token, base_api, station_id):
-    url = f"{base_api}/dev/select_mi"
+    url = f"{base_api}/dev/select_mi/"
     headers = HEADERS.copy()
     headers["Authorization"] = token
     headers["token"] = token
