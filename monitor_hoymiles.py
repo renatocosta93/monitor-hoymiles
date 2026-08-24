@@ -3,9 +3,6 @@ import requests
 import hashlib
 from datetime import datetime
 
-# ==========================================
-# CREDENCIAIS CONFIGURADAS
-# ==========================================
 HOYMILES_USER = "renato93@gmail.com"
 HOYMILES_PASS = "mcosta295@"
 
@@ -13,52 +10,57 @@ TELEGRAM_BOT_TOKEN = "8946039720:AAF7U0QokemhGv_5iTzVj9L6IGB1C1kOvhE"
 TELEGRAM_CHAT_ID = "1020154663"
 
 HEADERS = {
-    "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 16_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148",
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
     "Content-Type": "application/json",
     "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
     "Origin": "https://global.hoymiles.com",
-    "Referer": "https://global.hoymiles.com/"
+    "Referer": "https://global.hoymiles.com/website/login"
 }
 
 def get_md5(texto):
     return hashlib.md5(texto.encode('utf-8')).hexdigest()
 
 def autenticar():
-    rotas = [
-        "https://api.hoymiles.com/pvm/api/0/login/",
-        "https://ne-api.hoymiles.com/pvm/api/0/login/",
-        "https://global.hoymiles.com/pvm-api/0/login/",
-        "https://api.hoymiles.com/api/0/login/"
+    # Gateways regionais oficiais da Hoymiles (Global, Europa, Américas e Ásia)
+    servidores = [
+        "https://global.hoymiles.com/pvm-api",
+        "https://eu2.hoymiles.com/pvm-api",
+        "https://us.hoymiles.com/pvm-api",
+        "https://cn.hoymiles.com/pvm-api",
+        "https://global.hoymiles.com/api/0"
     ]
     
     payloads = [
-        {"user_name": HOYMILES_USER, "password": get_md5(HOYMILES_PASS)},
-        {"user_name": HOYMILES_USER, "password": HOYMILES_PASS}
+        {"user_name": HOYMILES_USER, "password": get_md5(HOYMILES_PASS), "language": "pt_BR"},
+        {"user_name": HOYMILES_USER, "password": HOYMILES_PASS, "language": "pt_BR"},
+        {"account": HOYMILES_USER, "password": get_md5(HOYMILES_PASS)},
+        {"account": HOYMILES_USER, "password": HOYMILES_PASS}
     ]
     
-    for url in rotas:
+    for base in servidores:
+        url = f"{base}/login"
         for p in payloads:
             try:
-                res = requests.post(url, json=p, headers=HEADERS, timeout=15)
-                print(f"Testando {url} -> Status {res.status_code}")
+                res = requests.post(url, json=p, headers=HEADERS, timeout=12)
+                print(f"Tentando {url} -> HTTP {res.status_code}")
                 if res.status_code == 200:
                     data_json = res.json()
-                    print(f"Resposta: {data_json}")
+                    print(f"Retorno: {data_json}")
                     
                     if str(data_json.get("status")) == "0" or str(data_json.get("code")) == "0":
                         dados = data_json.get("data", {})
                         token = dados.get("token") or dados.get("token_id") or dados.get("access_token")
                         if token:
-                            base_url = url.rstrip("/").rsplit("/", 1)[0]
-                            print(f"Sucesso na rota base: {base_url}")
-                            return token, base_url
+                            print(f"--> LOGIN EFETUADO COM SUCESSO NO GATEWAY: {base}")
+                            return token, base
             except Exception as e:
                 print(f"Erro em {url}: {e}")
                 
     return None, None
 
 def obter_dados_usina(token, base_api):
-    url = f"{base_api}/station/select_station/"
+    url = f"{base_api}/station/select_station"
     headers = HEADERS.copy()
     headers["Authorization"] = token
     headers["token"] = token
@@ -70,11 +72,11 @@ def obter_dados_usina(token, base_api):
         stations = res_json.get("data", {}).get("list", [])
         return stations[0] if stations else None
     except Exception as e:
-        print(f"Erro ao obter usina: {e}")
+        print(f"Erro usina: {e}")
         return None
 
 def obter_microinversores(token, base_api, station_id):
-    url = f"{base_api}/dev/select_mi/"
+    url = f"{base_api}/dev/select_mi"
     headers = HEADERS.copy()
     headers["Authorization"] = token
     headers["token"] = token
@@ -85,7 +87,7 @@ def obter_microinversores(token, base_api, station_id):
         res_json = res.json()
         return res_json.get("data", {}).get("list", [])
     except Exception as e:
-        print(f"Erro ao obter microinversores: {e}")
+        print(f"Erro microinversores: {e}")
         return []
 
 def enviar_telegram(mensagem):
@@ -97,7 +99,7 @@ def enviar_telegram(mensagem):
     }
     try:
         res = requests.post(url, json=payload, timeout=10)
-        print(f"Envio Telegram: {res.status_code}")
+        print(f"Telegram status: {res.status_code}")
     except Exception as e:
         print(f"Erro Telegram: {e}")
 
@@ -118,7 +120,6 @@ def main():
     agora = datetime.now().strftime("%d/%m/%Y - %H:%M")
     status_usina = "🟢 Online (Gerando)" if usina.get("status") == 1 else "🔴 Offline / Repouso"
     
-    # Formatação do Painel
     msg = f"☀️ *PAINEL SOLAR HOYMILES* ☀️\n"
     msg += f"📅 `{agora}`\n\n"
     
@@ -142,7 +143,7 @@ def main():
     msg += f"\n🌱 *Impacto:* `{co2} kg` CO₂ evitados"
 
     enviar_telegram(msg)
-    print("Processo concluído com sucesso!")
+    print("Processo concluído e mensagem enviada com sucesso!")
 
 if __name__ == "__main__":
     main()
