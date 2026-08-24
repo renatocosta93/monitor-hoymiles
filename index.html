@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel Solar Hoymiles</title>
+    <style>
+        :root { --bg: #0f172a; --card: #1e293b; --text: #f8fafc; --accent: #f59e0b; --green: #10b981; --blue: #3b82f6; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 16px; }
+        .container { max-width: 700px; margin: 0 auto; }
+        .header { text-align: center; padding: 20px 0; }
+        .badge { background: rgba(16, 185, 129, 0.2); color: var(--green); padding: 4px 12px; border-radius: 999px; font-weight: bold; font-size: 14px; }
+        .card { background: var(--card); border-radius: 16px; padding: 20px; margin-bottom: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.3); }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .stat-val { font-size: 24px; font-weight: bold; margin-top: 4px; }
+        .progress-bar { background: rgba(255,255,255,0.1); height: 10px; border-radius: 5px; overflow: hidden; margin-top: 8px; }
+        .progress-fill { background: var(--accent); height: 100%; border-radius: 5px; }
+        .inv-card { border-left: 4px solid var(--blue); padding-left: 12px; margin-top: 12px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>☀️ Usina Solar Hoymiles</h1>
+            <span class="badge">🌙 Repouso (Sem Sol)</span>
+            <p style="color: #94a3b8; margin-top: 8px;">Vargem Grande Paulista - SP | 24/08/2026 - 19:00</p>
+        </div>
+
+        <div class="card">
+            <div style="color: #94a3b8;">Potência Instantânea</div>
+            <div class="stat-val" style="color: var(--accent); font-size: 36px;">0.0 W</div>
+            <div style="margin-top: 12px;">Meta Diária: 12.15 / 7.05 kWh (172.3%)</div>
+            <div class="progress-bar"><div class="progress-fill" style="width: 100%;"></div></div>
+        </div>
+
+        <div class="grid">
+            <div class="card">
+                <div style="color: #94a3b8;">Gerado Hoje</div>
+                <div class="stat-val">12.15 kWh</div>
+                <div style="color: var(--green); margin-top: 4px;">R$ 10.69</div>
+            </div>
+            <div class="card">
+                <div style="color: #94a3b8;">Mês Atual</div>
+                <div class="stat-val">74.24 kWh</div>
+                <div style="color: var(--green); margin-top: 4px;">R$ 65.33</div>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3>⚡ Telemetria da Rede & Módulos</h3>
+            <p>Tensão da Rede: <b>220.0 V</b> | Freq: <b>60.0 Hz</b></p>
+            <div><p>Microinversores sincronizados via DTU.</p></div>
+        </div>
+    </div>
+</body>
+</html>
