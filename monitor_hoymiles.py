@@ -1,4 +1,3 @@
-
 import json
 import re
 import requests
@@ -6,13 +5,16 @@ from datetime import datetime
 from playwright.sync_api import sync_playwright
 
 # ==========================================
-# CREDENCIAIS CONFIGURADAS
+# CONFIGURAÇÕES E CREDENCIAIS
 # ==========================================
 HOYMILES_USER = "renato93@gmail.com"
 HOYMILES_PASS = "mcosta295@"
 
 TELEGRAM_BOT_TOKEN = "8946039720:AAF7U0QokemhGv_5iTzVj9L6IGB1C1kOvhE"
 TELEGRAM_CHAT_ID = "1020154663"
+
+POTENCIA_INSTALADA_WP = 2000.0  # Potência total da usina em Wp (ex: 2000 Wp)
+TARIFA_KWH = 0.88               # Valor médio da sua tarifa de energia (R$/kWh)
 
 captured_data = []
 
@@ -25,6 +27,24 @@ def interceptar_resposta(response):
     except Exception:
         pass
 
+def converter_energia(valor):
+    if valor is None:
+        return 0.0
+    try:
+        num = float(str(valor).replace(",", "."))
+        if num > 500:
+            return round(num / 1000.0, 2)
+        return round(num, 2)
+    except Exception:
+        return 0.0
+
+def extrair_campo(obj, chaves):
+    if isinstance(obj, dict):
+        for k in chaves:
+            if k in obj and obj[k] not in [None, "", "--"]:
+                return obj[k]
+    return None
+
 def enviar_telegram(mensagem):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     payload = {
@@ -36,17 +56,10 @@ def enviar_telegram(mensagem):
         res = requests.post(url, json=payload, timeout=15)
         print(f"Status Telegram: {res.status_code}")
     except Exception as e:
-        print(f"Erro Telegram: {e}")
-
-def extrair_valor(dicionario, chaves):
-    for k in chaves:
-        if k in dicionario and dicionario[k] is not None:
-            return dicionario[k]
-    return None
+        print(f"Erro ao enviar Telegram: {e}")
 
 def main():
-    print("Iniciando navegador Playwright...")
-    dom_text = ""
+    print("Iniciando coleta Playwright completa...")
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
@@ -58,122 +71,212 @@ def main():
         page.on("response", interceptar_resposta)
 
         try:
-            print("Acessando tela de login...")
             page.goto("https://global.hoymiles.com/website/login", wait_until="networkidle", timeout=60000)
             page.wait_for_timeout(3000)
 
-            # Preenchimento dos campos de acesso
             user_input = page.locator("input[type='text'], input[placeholder*='usuário' i], input[placeholder*='user' i], input[placeholder*='account' i]").first
             user_input.fill(HOYMILES_USER)
 
             pass_input = page.locator("input[type='password']").first
             pass_input.fill(HOYMILES_PASS)
 
-            # Checkbox de termos (caso visível)
             checkbox = page.locator(".el-checkbox__input, input[type='checkbox']").first
             if checkbox.is_visible():
                 checkbox.click()
 
-            # Botão de Login
             login_btn = page.locator("button[type='submit'], button.el-button--primary, button:has-text('Entrar'), button:has-text('Log In'), button:has-text('Login')").first
             login_btn.click()
-            print("Login submetido...")
 
-            # Aguarda a saída da tela de login e o carregamento do painel
             page.wait_for_timeout(15000)
             page.wait_for_load_state("networkidle")
-            print(f"URL após login: {page.url}")
 
-            # Se houver lista de usinas, tenta clicar na primeira usina
+            # Clica para abrir detalhes da usina e dos microinversores se disponíveis
             usina_link = page.locator(".station-name, .plant-name, .table-row, a[href*='overview']").first
             if usina_link.is_visible():
                 usina_link.click()
-                page.wait_for_timeout(6000)
+                page.wait_for_timeout(5000)
 
-            dom_text = page.inner_text("body")
+            # Acessa aba de dispositivos se existir na navegação
+            dev_tab = page.locator("text='Dispositivo', text='Device', text='Equipamentos'").first
+            if dev_tab.is_visible():
+                dev_tab.click()
+                page.wait_for_timeout(5000)
 
         except Exception as e:
             print(f"Erro na navegação: {e}")
         finally:
             browser.close()
 
-    # Processamento e extração dos dados
-    real_power = None
-    today_eq = None
-    month_eq = None
-    total_eq = None
+    # Variáveis consolidadas
+    real_power_val = 0.0
+    today_eq_raw = None
+    month_eq_raw = None
+    year_eq_raw = None
+    total_eq_raw = None
+    peak_power = 0.0
+    co2_raw = None
+    grid_v = "--"
+    grid_f = "--"
+    grid_i = "--"
+    power_factor = "--"
+    dtu_signal = "--"
+    last_sync = "--"
+    alarmes_detectados = []
     inversores_info = []
 
-    # 1. Varredura dos JSONs interceptados (suporta snake_case e camelCase)
-    chaves_potencia = ["real_power", "realPower", "pac", "power", "real_p"]
-    chaves_hoje = ["today_eq", "todayEq", "today_energy", "todayEnergy", "e_today"]
-    chaves_mes = ["month_eq", "monthEq", "month_energy", "monthEnergy", "e_month"]
-    chaves_total = ["total_eq", "totalEq", "total_energy", "totalEnergy", "e_total"]
+    def varrer_json(obj):
+        nonlocal real_power_val, today_eq_raw, month_eq_raw, year_eq_raw, total_eq_raw
+        nonlocal peak_power, co2_raw, grid_v, grid_f, grid_i, power_factor, dtu_signal, last_sync
+        
+        if isinstance(obj, dict):
+            # Geração e Potência
+            p = extrair_campo(obj, ["real_power", "realPower", "pac", "power", "real_p"])
+            if p is not None and real_power_val == 0.0:
+                try: real_power_val = float(str(p).replace(",", "."))
+                except: pass
+
+            h = extrair_campo(obj, ["today_eq", "todayEq", "today_energy", "e_today"])
+            if h is not None and today_eq_raw is None: today_eq_raw = h
+
+            m = extrair_campo(obj, ["month_eq", "monthEq", "month_energy", "e_month"])
+            if m is not None and month_eq_raw is None: month_eq_raw = m
+
+            y = extrair_campo(obj, ["year_eq", "yearEq", "year_energy", "e_year"])
+            if y is not None and year_eq_raw is None: year_eq_raw = y
+
+            t = extrair_campo(obj, ["total_eq", "totalEq", "total_energy", "e_total"])
+            if t is not None and total_eq_raw is None: total_eq_raw = t
+
+            pk = extrair_campo(obj, ["peak_power", "peakPower", "max_power"])
+            if pk is not None and peak_power == 0.0:
+                try: peak_power = float(str(pk).replace(",", "."))
+                except: pass
+
+            co2 = extrair_campo(obj, ["co2_emission_reduction", "co2_eq", "co2_reduction"])
+            if co2 is not None and co2_raw is None: co2_raw = co2
+
+            # Rede Elétrica CA
+            gv = extrair_campo(obj, ["grid_voltage", "gridVoltage", "v_ac", "vac", "voltage"])
+            if gv is not None and grid_v == "--": grid_v = str(gv)
+
+            gf = extrair_campo(obj, ["grid_frequency", "gridFrequency", "frequency", "fac", "freq"])
+            if gf is not None and grid_f == "--": grid_f = str(gf)
+
+            gi = extrair_campo(obj, ["grid_current", "gridCurrent", "i_ac", "iac", "current"])
+            if gi is not None and grid_i == "--": grid_i = str(gi)
+
+            pf = extrair_campo(obj, ["power_factor", "powerFactor", "cos_phi", "pf"])
+            if pf is not None and power_factor == "--": power_factor = str(pf)
+
+            # Hardware e DTU
+            sig = extrair_campo(obj, ["csq", "signal", "rssi", "dtu_rssi", "link_status"])
+            if sig is not None and dtu_signal == "--": dtu_signal = f"{sig}%"
+
+            sync = extrair_campo(obj, ["last_upload_time", "upload_time", "report_time", "update_time"])
+            if sync is not None and last_sync == "--":
+                last_sync = str(sync).split(" ")[-1] if " " in str(sync) else str(sync)
+
+            # Alarmes
+            al = extrair_campo(obj, ["warn_list", "alarm_list", "alarm_code", "alarms"])
+            if al and isinstance(al, list):
+                for item_al in al:
+                    if item_al and str(item_al) not in alarmes_detectados:
+                        alarmes_detectados.append(str(item_al))
+
+            # Microinversores
+            if "sn" in obj or "mi_sn" in obj:
+                inversores_info.append(obj)
+
+            for v in obj.values():
+                varrer_json(v)
+        elif isinstance(obj, list):
+            for item in obj:
+                varrer_json(item)
 
     for item in captured_data:
-        body = item.get("data", {})
-        
-        def varrer_objeto(obj):
-            nonlocal real_power, today_eq, month_eq, total_eq
-            if isinstance(obj, dict):
-                p = extrair_valor(obj, chaves_potencia)
-                if p is not None and real_power is None: real_power = p
-                
-                h = extrair_valor(obj, chaves_hoje)
-                if h is not None and today_eq is None: today_eq = h
+        varrer_json(item.get("data", {}))
 
-                m = extrair_valor(obj, chaves_mes)
-                if m is not None and month_eq is None: month_eq = m
+    # Conversões e Cálculos
+    today_kwh = converter_energia(today_eq_raw)
+    month_kwh = converter_energia(month_eq_raw)
+    year_kwh = converter_energia(year_eq_raw)
+    total_kwh = converter_energia(total_eq_raw)
 
-                t = extrair_valor(obj, chaves_total)
-                if t is not None and total_eq is None: total_eq = t
+    eficiencia = round((real_power_val / POTENCIA_INSTALADA_WP) * 100, 1) if POTENCIA_INSTALADA_WP > 0 else 0
+    hsp = round(today_kwh / (POTENCIA_INSTALADA_WP / 1000.0), 2) if POTENCIA_INSTALADA_WP > 0 else 0
 
-                if "sn" in obj or "mi_sn" in obj or "model" in obj:
-                    inversores_info.append(obj)
+    economia_dia = round(today_kwh * TARIFA_KWH, 2)
+    economia_mes = round(month_kwh * TARIFA_KWH, 2)
+    economia_total = round(total_kwh * TARIFA_KWH, 2)
 
-                for v in obj.values():
-                    varrer_objeto(v)
-            elif isinstance(obj, list):
-                for elem in obj:
-                    varrer_objeto(elem)
+    co2_evitado = round(today_kwh * 0.42, 2) if co2_raw is None else round(float(str(co2_raw).replace(",", ".")), 2)
+    arvores_equiv = round(co2_evitado / 20.0, 2)
 
-        varrer_objeto(body)
-
-    # 2. Fallback de extração via texto do DOM caso JSON venha aninhado
-    if real_power is None:
-        p_match = re.search(r'(\d+[\.,]?\d*)\s*(?:W|kW)\b', dom_text)
-        real_power = p_match.group(0) if p_match else "0 W"
-    else:
-        real_power = f"{real_power} W"
-
-    today_eq = f"{today_eq} kWh" if today_eq is not None else "-- kWh"
-    month_eq = f"{month_eq} kWh" if month_eq is not None else "-- kWh"
-    total_eq = f"{total_eq} kWh" if total_eq is not None else "-- kWh"
-
+    status_icon = "🟢 Online (Gerando)" if real_power_val > 10 else "🌙 Offline / Repouso"
     agora = datetime.now().strftime("%d/%m/%Y - %H:%M")
-    
-    # Formatação do Painel Solar
+
+    # Montagem da Mensagem
     msg = f"☀️ *PAINEL SOLAR HOYMILES* ☀️\n"
-    msg += f"📅 `{agora}`\n\n"
-    msg += f"📊 *GERAÇÃO DA USINA*\n"
-    msg += f"• *Potência Atual:* `{real_power}`\n"
-    msg += f"• *Hoje:* `{today_eq}`\n"
-    msg += f"• *Mês:* `{month_eq}`\n"
-    msg += f"• *Total Acumulado:* `{total_eq}`\n\n"
+    msg += f"📅 `{agora}` | {status_icon}\n\n"
+
+    msg += f"📊 *GERAÇÃO & RENDIMENTO*\n"
+    msg += f"• *Potência Atual:* `{real_power_val:.1f} W` ({eficiencia}% da usina)\n"
+    msg += f"• *Hoje:* `{today_kwh:.2f} kWh`"
+    if peak_power > 0: msg += f" | *Pico:* `{peak_power:.0f} W`\n"
+    else: msg += "\n"
+    msg += f"• *Rendimento Diário (HSP):* `{hsp:.2f} h`\n"
+    msg += f"• *Mês Atual:* `{month_kwh:.2f} kWh`\n"
+    if year_kwh > 0: msg += f"• *Ano Atual:* `{year_kwh:.2f} kWh`\n"
+    msg += f"• *Total Histórico:* `{total_kwh:.2f} kWh`\n\n"
+
+    msg += f"💰 *ECONOMIA ESTIMADA*\n"
+    msg += f"• *Hoje:* `R$ {economia_dia:.2f}`\n"
+    msg += f"• *Mês Atual:* `R$ {economia_mes:.2f}`\n"
+    msg += f"• *Total Acumulado:* `R$ {economia_total:.2f}`\n\n"
+
+    msg += f"⚡ *REDE ELÉTRICA (CA)*\n"
+    msg += f"• *Tensão:* `{grid_v} V` | *Frequência:* `{grid_f} Hz`\n"
+    if grid_i != "--" or power_factor != "--":
+        msg += f"• *Corrente CA:* `{grid_i} A` | *Fator Potência:* `{power_factor}`\n"
+    msg += "\n"
 
     if inversores_info:
-        msg += f"🔌 *MICROINVERSORES*\n"
+        msg += f"🔌 *MICROINVERSORES & PLACAS (DC)*\n"
         vistos = set()
         for idx, inv in enumerate(inversores_info, start=1):
-            sn = inv.get("sn") or inv.get("mi_sn") or f"Inv {idx}"
+            sn = inv.get("sn") or inv.get("mi_sn") or f"Inversor {idx}"
             if sn in vistos: continue
             vistos.add(sn)
+
             temp = inv.get("temperature") or inv.get("temp") or "--"
             pot = inv.get("real_power") or inv.get("realPower") or inv.get("power") or "--"
-            msg += f"• *{sn}*: `{pot} W` | `{temp}°C`\n"
+            msg += f"• *Inv {idx} ({sn})* — `{temp}°C` | `{pot} W`\n"
+
+            # Telemetria de Portas/Canais DC (PV1, PV2...)
+            ports = inv.get("port_list") or inv.get("channels") or inv.get("pv_list")
+            if ports and isinstance(ports, list):
+                for p_idx, port in enumerate(ports, start=1):
+                    p_w = port.get("power") or port.get("real_power") or "--"
+                    p_v = port.get("voltage") or port.get("v_dc") or "--"
+                    p_i = port.get("current") or port.get("i_dc") or "--"
+                    msg += f"  └ PV{p_idx}: `{p_v} V` | `{p_i} A` | `{p_w} W`\n"
+        msg += "\n"
+
+    # Status de Diagnóstico e DTU
+    msg += f"📡 *HARDWARE & DIAGNÓSTICO*\n"
+    if dtu_signal != "--" or last_sync != "--":
+        msg += f"• *DTU Wi-Fi:* `{dtu_signal}` | *Último Sync:* `{last_sync}`\n"
+    
+    if alarmes_detectados:
+        msg += f"• *Alarmes:* ⚠️ `{' | '.join(alarmes_detectados)}`\n\n"
+    else:
+        msg += f"• *Alarmes:* 🟢 Nenhum alarme ativo\n\n"
+
+    msg += f"🌱 *IMPACTO AMBIENTAL*\n"
+    msg += f"• *CO₂ Evitado:* `{co2_evitado:.2f} kg` (~{arvores_equiv} árvores)"
 
     enviar_telegram(msg)
-    print("Execução finalizada e enviada para o Telegram!")
+    print("Processo concluído com sucesso!")
 
 if __name__ == "__main__":
     main()
