@@ -3,54 +3,217 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Painel Solar Hoymiles</title>
+    <title>Painel Solar Hoymiles — Vargem Grande Paulista</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
-        :root { --bg: #0f172a; --card: #1e293b; --text: #f8fafc; --accent: #f59e0b; --green: #10b981; --blue: #3b82f6; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 16px; }
-        .container { max-width: 700px; margin: 0 auto; }
-        .header { text-align: center; padding: 20px 0; }
-        .badge { background: rgba(16, 185, 129, 0.2); color: var(--green); padding: 4px 12px; border-radius: 999px; font-weight: bold; font-size: 14px; }
-        .card { background: var(--card); border-radius: 16px; padding: 20px; margin-bottom: 16px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.3); }
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-        .stat-val { font-size: 24px; font-weight: bold; margin-top: 4px; }
-        .progress-bar { background: rgba(255,255,255,0.1); height: 10px; border-radius: 5px; overflow: hidden; margin-top: 8px; }
-        .progress-fill { background: var(--accent); height: 100%; border-radius: 5px; }
-        .inv-card { border-left: 4px solid var(--blue); padding-left: 12px; margin-top: 12px; }
+        :root {
+            --bg: #0b1120;
+            --card-bg: #1e293b;
+            --card-border: #334155;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --solar-amber: #f59e0b;
+            --solar-green: #10b981;
+            --solar-blue: #38bdf8;
+            --solar-red: #ef4444;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg);
+            color: var(--text-main);
+            padding: 20px 12px;
+        }
+        .container { max-width: 800px; margin: 0 auto; }
+        .header { text-align: center; margin-bottom: 24px; }
+        .title { font-size: 26px; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        .badge {
+            display: inline-block;
+            margin-top: 8px;
+            padding: 4px 14px;
+            border-radius: 999px;
+            font-size: 13px;
+            font-weight: 700;
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--solar-green);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+        .badge.offline {
+            background: rgba(148, 163, 184, 0.15);
+            color: var(--text-muted);
+            border: 1px solid rgba(148, 163, 184, 0.3);
+        }
+        .location { color: var(--text-muted); font-size: 13px; margin-top: 6px; }
+        
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 18px;
+            padding: 20px;
+            margin-bottom: 16px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+        }
+        .power-card {
+            text-align: center;
+            background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+        }
+        .power-val {
+            font-size: 48px;
+            font-weight: 900;
+            color: var(--solar-amber);
+            line-height: 1.1;
+            margin: 10px 0;
+        }
+        .power-sub { color: var(--text-muted); font-size: 14px; }
+        
+        .progress-box { margin-top: 18px; }
+        .progress-labels { display: flex; justify-content: space-between; font-size: 13px; color: var(--text-muted); margin-bottom: 6px; }
+        .progress-bar { background: #334155; height: 10px; border-radius: 6px; overflow: hidden; }
+        .progress-fill { background: var(--solar-amber); height: 100%; border-radius: 6px; }
+
+        .grid-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px; }
+        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+        
+        .stat-label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; font-weight: 700; }
+        .stat-val { font-size: 22px; font-weight: 800; margin: 4px 0; color: var(--text-main); }
+        .stat-sub { font-size: 13px; color: var(--solar-green); font-weight: 600; }
+
+        .chart-box { margin-top: 10px; height: 220px; position: relative; }
+        
+        .inverter-item {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            padding: 14px;
+            margin-top: 10px;
+        }
+        .inv-head { display: flex; justify-content: space-between; font-weight: 700; font-size: 14px; margin-bottom: 8px; }
+        .inv-pv { font-size: 12px; color: var(--text-muted); margin-left: 12px; font-family: monospace; }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <h1>☀️ Usina Solar Hoymiles</h1>
-            <span class="badge">🌙 Repouso (Sem Sol)</span>
-            <p style="color: #94a3b8; margin-top: 8px;">Vargem Grande Paulista - SP | 24/08/2026 - 19:00</p>
-        </div>
+        <header class="header">
+            <h1 class="title">☀️ Painel Solar Hoymiles</h1>
+            <span class="badge offline">Repouso Noturno (Sem Sol)</span>
+            <p class="location">📍 Vargem Grande Paulista - SP | Atualizado às 24/08/2026 - 19:16</p>
+        </header>
 
-        <div class="card">
-            <div style="color: #94a3b8;">Potência Instantânea</div>
-            <div class="stat-val" style="color: var(--accent); font-size: 36px;">0.0 W</div>
-            <div style="margin-top: 12px;">Meta Diária: 12.15 / 7.05 kWh (172.3%)</div>
-            <div class="progress-bar"><div class="progress-fill" style="width: 100%;"></div></div>
-        </div>
-
-        <div class="grid">
-            <div class="card">
-                <div style="color: #94a3b8;">Gerado Hoje</div>
-                <div class="stat-val">12.15 kWh</div>
-                <div style="color: var(--green); margin-top: 4px;">R$ 10.69</div>
-            </div>
-            <div class="card">
-                <div style="color: #94a3b8;">Mês Atual</div>
-                <div class="stat-val">74.24 kWh</div>
-                <div style="color: var(--green); margin-top: 4px;">R$ 65.33</div>
+        <!-- Potência em Tempo Real & Meta -->
+        <div class="card power-card">
+            <div class="stat-label">Potência Instantânea de Geração</div>
+            <div class="power-val">0,0 <span style="font-size: 24px;">W</span></div>
+            <div class="power-sub">0,0% da capacidade total da usina (2000 Wp)</div>
+            
+            <div class="progress-box">
+                <div class="progress-labels">
+                    <span>Meta Diária: 0,00 kWh gerados</span>
+                    <span><b>0,0%</b> atingida (Meta: 7,05 kWh)</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" style="width: 0.0%;"></div>
+                </div>
             </div>
         </div>
 
+        <!-- Gráfico de Produção Horária -->
         <div class="card">
-            <h3>⚡ Telemetria da Rede & Módulos</h3>
-            <p>Tensão da Rede: <b>220.0 V</b> | Freq: <b>60.0 Hz</b></p>
-            <div><p>Microinversores sincronizados via DTU.</p></div>
+            <div class="stat-label">Curva de Produção por Horário (Hoje)</div>
+            <div class="chart-box">
+                <canvas id="solarChart"></canvas>
+            </div>
+        </div>
+
+        <!-- Cards com Acumulados -->
+        <div class="grid-cards">
+            <div class="card">
+                <div class="stat-label">Geração de Hoje</div>
+                <div class="stat-val">0,00 <span style="font-size: 15px;">kWh</span></div>
+                <div class="stat-sub">Economia: R$ 0,00</div>
+            </div>
+            <div class="card">
+                <div class="stat-label">Acumulado no Mês</div>
+                <div class="stat-val">0,00 <span style="font-size: 15px;">kWh</span></div>
+                <div class="stat-sub">Economia: R$ 0,00</div>
+            </div>
+        </div>
+
+        <div class="grid-3">
+            <div class="card">
+                <div class="stat-label">Total Histórico</div>
+                <div class="stat-val" style="font-size: 18px;">0,00 <span style="font-size: 12px;">kWh</span></div>
+                <div class="stat-sub" style="font-size: 12px;">R$ 0,00</div>
+            </div>
+            <div class="card">
+                <div class="stat-label">Pico do Dia</div>
+                <div class="stat-val" style="font-size: 18px;">0 <span style="font-size: 12px;">W</span></div>
+                <div style="font-size: 12px; color: var(--text-muted);">0,00 HSP</div>
+            </div>
+            <div class="card">
+                <div class="stat-label">CO₂ Evitado</div>
+                <div class="stat-val" style="font-size: 18px;">0,00 <span style="font-size: 12px;">kg</span></div>
+                <div style="font-size: 12px; color: var(--solar-green);">~0,0 árvores</div>
+            </div>
+        </div>
+
+        <!-- Telemetria Elétrica e Equipamentos -->
+        <div class="card">
+            <div class="stat-label" style="margin-bottom: 8px;">Telemetria da Rede Elétrica & Microinversores</div>
+            <p style="font-size: 14px; margin-bottom: 12px;">
+                Tensão da Rede: <b>220,0 V</b> | Frequência: <b>60,0 Hz</b>
+            </p>
+            <p style='color: var(--text-muted); font-size: 13px;'>Microinversores sincronizados via DTU.</p>
         </div>
     </div>
+
+    <script>
+        const ctx = document.getElementById('solarChart').getContext('2d');
+        const labels = ["06:00", "08:00", "10:00", "12:00", "14:00", "16:00", "18:00"];
+        const values = [0, 0.0, 0.0, 0.0, 0.0, 0.0, 0];
+
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Potência Gerada (W)',
+                    data: values,
+                    borderColor: '#f59e0b',
+                    backgroundColor: 'rgba(245, 158, 11, 0.15)',
+                    borderWidth: 2.5,
+                    fill: true,
+                    tension: 0.35,
+                    pointRadius: 2,
+                    pointHoverRadius: 5
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                return context.raw + ' W';
+                            }
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                        ticks: { color: '#94a3b8', font: { size: 10 }, maxTicksLimit: 12 }
+                    },
+                    y: {
+                        grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                        ticks: { color: '#94a3b8', font: { size: 10 } },
+                        suggestedMin: 0
+                    }
+                }
+            }
+        });
+    </script>
 </body>
 </html>
