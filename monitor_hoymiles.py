@@ -13,8 +13,8 @@ HOYMILES_PASS = "mcosta295@"
 TELEGRAM_BOT_TOKEN = "8946039720:AAF7U0QokemhGv_5iTzVj9L6IGB1C1kOvhE"
 TELEGRAM_CHAT_ID = "1020154663"
 
-POTENCIA_INSTALADA_WP = 2000.0  # Potência total dos painéis (Wp)
-TARIFA_KWH = 0.88               # Valor da tarifa de energia (R$/kWh)
+POTENCIA_INSTALADA_WP = 2000.0  # Potência total dos módulos instalados (em Wp)
+TARIFA_KWH = 0.88               # Valor médio da sua tarifa de energia (R$/kWh)
 
 # Fuso Horário de Brasília (UTC-3)
 FUSO_BR = timezone(timedelta(hours=-3))
@@ -61,15 +61,35 @@ def enviar_telegram(mensagem):
     except Exception as e:
         print(f"Erro ao enviar Telegram: {e}")
 
-def coletar_dados():
+def main():
+    print("Iniciando coleta avançada Playwright...")
     captured_data = []
+    auth_token = None
+    captured_sid = None
 
     def interceptar_resposta(response):
+        nonlocal auth_token, captured_sid
         try:
+            # Captura token nos headers de envio
+            req_headers = response.request.headers
+            token = req_headers.get("authorization") or req_headers.get("token")
+            if token and len(token) > 20 and not auth_token:
+                auth_token = token
+
             if "application/json" in response.headers.get("content-type", ""):
                 data = response.json()
                 if isinstance(data, dict):
                     captured_data.append(data)
+                    # Procura o SID da usina
+                    d = data.get("data", {})
+                    if isinstance(d, dict):
+                        sid = d.get("id") or d.get("sid") or d.get("station_id")
+                        if sid and not captured_sid:
+                            captured_sid = sid
+                    elif isinstance(d, list) and len(d) > 0 and isinstance(d[0], dict):
+                        sid = d[0].get("id") or d[0].get("sid")
+                        if sid and not captured_sid:
+                            captured_sid = sid
         except Exception:
             pass
 
@@ -96,61 +116,94 @@ def coletar_dados():
 
             page.locator("button[type='submit'], button.el-button--primary, button:has-text('Entrar'), button:has-text('Login')").first.click()
 
-            # Aguarda a tabela/painel aparecer
             page.wait_for_selector(".station-name, .plant-name, .el-table__row, a[href*='overview']", timeout=25000)
-            page.wait_for_timeout(5000)
+            page.wait_for_timeout(4000)
 
-            print("2. Acessando visão detalhada da usina...")
+            print("2. Acessando usina...")
             usina_btn = page.locator(".station-name, .plant-name, .el-table__row, a[href*='overview']").first
             if usina_btn.is_visible():
                 usina_btn.click()
-                page.wait_for_timeout(8000)
+                page.wait_for_timeout(6000)
                 page.wait_for_load_state("networkidle")
 
-            print("3. Navegando para dispositivos...")
-            for seletor in ["text='Dispositivo'", "text='Device'", "text='Equipamento'", ".el-tabs__item:has-text('Dispositivo')"]:
+            # 3. Clica especificamente na aba de Dispositivos para carregar microinversores
+            print("3. Abrindo dispositivos...")
+            for tab_txt in ["Dispositivo", "Dispositivos", "Device", "Devices", "Equipamento", "Layout"]:
                 try:
-                    btn = page.locator(seletor).first
-                    if btn.is_visible():
-                        btn.click()
-                        page.wait_for_timeout(6000)
+                    tab = page.get_by_text(tab_txt, exact=False).first
+                    if tab.is_visible():
+                        tab.click()
+                        page.wait_for_timeout(5000)
+                        page.wait_for_load_state("networkidle")
                         break
                 except Exception:
                     pass
 
+            # 4. Requisições diretas à API usando a sessão do navegador
+            js_script = """
+            async () => {
+                let token = localStorage.getItem('token') || localStorage.getItem('access_token') || sessionStorage.getItem('token') || '';
+                let sid = localStorage.getItem('sid') || localStorage.getItem('station_id') || '';
+                let results = [];
+                let headers = {
+                    'Content-Type': 'application/json',
+                    'Authorization': token,
+                    'token': token
+                };
+                
+                let urls = [
+                    {url: '/pvm-api/dev/select_mi', body: {sid: sid, page: 1, page_size: 50}},
+                    {url: '/pvm-api/dev/select_dtu', body: {sid: sid}},
+                    {url: '/pvm-api/station/find_power_chart', body: {sid: sid}},
+                    {url: '/pvm-api/alarm/select_warn', body: {sid: sid, page: 1, page_size: 20}}
+                ];
+                
+                for(let item of urls) {
+                    try {
+                        let res = await fetch(item.url, {
+                            method: 'POST',
+                            headers: headers,
+                            body: JSON.stringify(item.body)
+                        });
+                        let j = await res.json();
+                        results.push(j);
+                    } catch(e) {}
+                }
+                return results;
+            }
+            """
+            extra_res = page.evaluate(js_script)
+            if extra_res and isinstance(extra_res, list):
+                for item in extra_res:
+                    if isinstance(item, dict):
+                        captured_data.append(item)
+
         except Exception as e:
-            print(f"Aviso durante navegação: {e}")
+            print(f"Aviso Playwright: {e}")
         finally:
             browser.close()
 
-    return captured_data
-
-def processar_e_enviar():
-    captured_data = coletar_dados()
-
-    # Se não capturou nada, tenta uma segunda vez antes de desistir
-    if not captured_data:
-        print("Primeira tentativa sem pacotes. Tentando novamente...")
-        captured_data = coletar_dados()
-
+    # Variáveis consolidadas
     real_power_val = None
     today_eq_raw = None
     month_eq_raw = None
     total_eq_raw = None
     peak_power = 0.0
     co2_raw = None
-    start_time_raw = None
+    start_time_str = None
     grid_v = "--"
     grid_f = "--"
-    grid_i = "--"
+    dtu_signal = "--"
+    last_sync = "--"
     alarmes_detectados = []
     inversores_dict = {}
 
     def varrer_json(obj):
         nonlocal real_power_val, today_eq_raw, month_eq_raw, total_eq_raw
-        nonlocal peak_power, co2_raw, start_time_raw, grid_v, grid_f, grid_i
+        nonlocal peak_power, co2_raw, start_time_str, grid_v, grid_f, dtu_signal, last_sync
         
         if isinstance(obj, dict):
+            # Potência e Energia
             p = extrair_campo(obj, ["real_power", "realPower", "pac", "power", "real_p"])
             if p is not None and real_power_val is None:
                 try: real_power_val = float(str(p).replace(",", "."))
@@ -173,26 +226,43 @@ def processar_e_enviar():
             co2 = extrair_campo(obj, ["co2_emission_reduction", "co2_eq", "co2_reduction"])
             if co2 is not None and co2_raw is None: co2_raw = co2
 
-            st = extrair_campo(obj, ["start_time", "start_gen_time", "online_time", "create_time"])
-            if st is not None and start_time_raw is None: start_time_raw = str(st)
+            # Extração da hora de início e pico pela curva solar (power_chart)
+            chart_list = extrair_campo(obj, ["chart_list", "power_list", "points", "detail"])
+            if chart_list and isinstance(chart_list, list):
+                for pt in chart_list:
+                    if isinstance(pt, dict):
+                        p_val = float(str(pt.get("val") or pt.get("power") or 0).replace(",", "."))
+                        p_time = str(pt.get("time") or pt.get("date") or "")
+                        if p_val > 10 and not start_time_str and p_time:
+                            start_time_str = p_time.split(" ")[-1][:5]
+                        if p_val > peak_power:
+                            peak_power = p_val
 
+            # Rede Elétrica
             gv = extrair_campo(obj, ["grid_voltage", "gridVoltage", "v_ac", "vac", "voltage", "vol"])
             if gv is not None and grid_v == "--": grid_v = str(gv)
 
             gf = extrair_campo(obj, ["grid_frequency", "gridFrequency", "frequency", "fac", "freq"])
             if gf is not None and grid_f == "--": grid_f = str(gf)
 
-            gi = extrair_campo(obj, ["grid_current", "gridCurrent", "i_ac", "iac", "current"])
-            if gi is not None and grid_i == "--": grid_i = str(gi)
+            # DTU
+            sig = extrair_campo(obj, ["csq", "signal", "rssi", "dtu_rssi", "link_status"])
+            if sig is not None and dtu_signal == "--": dtu_signal = f"{sig}%"
 
+            sync = extrair_campo(obj, ["last_upload_time", "upload_time", "report_time", "update_time"])
+            if sync is not None and last_sync == "--":
+                last_sync = str(sync).split(" ")[-1] if " " in str(sync) else str(sync)
+
+            # Alarmes
             al = extrair_campo(obj, ["warn_list", "alarm_list", "alarm_code", "alarms"])
             if al and isinstance(al, list):
                 for item_al in al:
                     if item_al and str(item_al) not in alarmes_detectados:
                         alarmes_detectados.append(str(item_al))
 
+            # Microinversores
             sn = extrair_campo(obj, ["sn", "mi_sn", "inverter_sn", "device_sn", "miSn"])
-            if sn and str(sn).strip() != "":
+            if sn and str(sn).strip() != "" and len(str(sn).strip()) >= 8:
                 sn_str = str(sn).strip()
                 if sn_str not in inversores_dict:
                     inversores_dict[sn_str] = obj
@@ -208,9 +278,9 @@ def processar_e_enviar():
     for item in captured_data:
         varrer_json(item)
 
-    # TRAVA DE SEGURANÇA: se o total histórico não foi lido, houve falha de rede da sessão
+    # Validação de integridade
     if total_eq_raw is None and today_eq_raw is None:
-        print("Falha na sincronização dos dados com a nuvem Hoymiles. Mensagem cancelada para evitar envio zerado.")
+        print("Sessão não sincronizada a tempo. Abortando envio para evitar dados vazios.")
         return
 
     real_power_val = real_power_val if real_power_val is not None else 0.0
@@ -228,21 +298,19 @@ def processar_e_enviar():
     co2_evitado = converter_co2(co2_raw)
     arvores_equiv = round(co2_evitado / 20.0, 2)
 
-    inicio_str = ""
-    if start_time_raw:
-        inicio_str = f" | 🌅 Início: {start_time_raw.split(' ')[-1][:5]}"
+    inicio_str = f" | 🌅 *Início:* `{start_time_str}`" if start_time_str else ""
+    pico_str = f" | *Pico:* `{peak_power:.0f} W`" if peak_power > 0 else ""
 
     agora_br = datetime.now(FUSO_BR).strftime("%d/%m/%Y - %H:%M")
     status_icon = "🟢 Online (Gerando)" if real_power_val > 10 else "🌙 Offline / Repouso"
 
+    # Montagem da Mensagem
     msg = f"☀️ *PAINEL SOLAR HOYMILES* ☀️\n"
     msg += f"📅 `{agora_br}` | {status_icon}\n\n"
 
     msg += f"📊 *GERAÇÃO & RENDIMENTO*\n"
     msg += f"• *Potência Atual:* `{real_power_val:.1f} W` ({eficiencia}% da usina)\n"
-    msg += f"• *Hoje:* `{today_kwh:.2f} kWh`"
-    if peak_power > 0: msg += f" | *Pico:* `{peak_power:.0f} W`\n"
-    else: msg += "\n"
+    msg += f"• *Hoje:* `{today_kwh:.2f} kWh`{pico_str}\n"
     msg += f"• *Rendimento Diário (HSP):* `{hsp:.2f} h`{inicio_str}\n"
     msg += f"• *Mês Atual:* `{month_kwh:.2f} kWh`\n"
     msg += f"• *Total Histórico:* `{total_kwh:.2f} kWh`\n\n"
@@ -252,37 +320,49 @@ def processar_e_enviar():
     msg += f"• *Mês Atual:* `R$ {economia_mes:.2f}`\n"
     msg += f"• *Total Acumulado:* `R$ {economia_total:.2f}`\n\n"
 
+    # Se a tensão não estiver no sumário geral, pega do primeiro microinversor
+    if grid_v == "--" and inversores_dict:
+        for inv in inversores_dict.values():
+            v_cand = extrair_campo(inv, ["grid_voltage", "gridVoltage", "v_ac", "vac", "voltage", "vol"])
+            if v_cand:
+                grid_v = str(v_cand)
+                break
+
     if grid_v != "--" or grid_f != "--":
         msg += f"⚡ *REDE ELÉTRICA (CA)*\n"
         msg += f"• *Tensão:* `{grid_v} V`"
         if grid_f != "--": msg += f" | *Frequência:* `{grid_f} Hz`"
-        if grid_i != "--": msg += f" | *Corrente:* `{grid_i} A`"
         msg += "\n\n"
 
     if inversores_dict:
-        msg += f"🔌 *MICROINVERSORES & PLACAS*\n"
-        for sn, inv in inversores_dict.items():
+        msg += f"🔌 *MICROINVERSORES & PLACAS (DC)*\n"
+        for idx, (sn, inv) in enumerate(inversores_dict.items(), start=1):
             temp = inv.get("temperature") or inv.get("temp") or "--"
             pot = inv.get("real_power") or inv.get("realPower") or inv.get("power") or "--"
-            v_inv = inv.get("grid_voltage") or inv.get("gridVoltage") or "--"
+            v_inv = inv.get("grid_voltage") or inv.get("gridVoltage") or grid_v
 
             detalhes = []
             if pot != "--": detalhes.append(f"{pot} W")
             if temp != "--": detalhes.append(f"{temp}°C")
             if v_inv != "--": detalhes.append(f"{v_inv} V")
 
-            msg += f"• *{sn}* — `{' | '.join(detalhes)}`\n"
+            msg += f"• *Inv {idx} ({sn})* — `{' | '.join(detalhes)}`\n"
 
             ports = inv.get("port_list") or inv.get("channels") or inv.get("pv_list") or inv.get("portList")
             if ports and isinstance(ports, list):
+                total_p = len(ports)
                 for p_idx, port in enumerate(ports, start=1):
+                    prefix = "└" if p_idx == total_p else "├"
                     p_w = port.get("power") or port.get("real_power") or port.get("realPower") or "--"
                     p_v = port.get("voltage") or port.get("v_dc") or port.get("vol") or "--"
                     p_i = port.get("current") or port.get("i_dc") or port.get("cur") or "--"
-                    msg += f"  └ PV{p_idx}: `{p_v} V` | `{p_i} A` | `{p_w} W`\n"
+                    msg += f"  {prefix} PV{p_idx}: `{p_v} V` | `{p_i} A` | `{p_w} W`\n"
         msg += "\n"
 
     msg += f"📡 *HARDWARE & DIAGNÓSTICO*\n"
+    if dtu_signal != "--" or last_sync != "--":
+        msg += f"• *DTU Wi-Fi:* `{dtu_signal}` | *Último Sync:* `{last_sync}`\n"
+    
     if alarmes_detectados:
         msg += f"• *Alarmes:* ⚠️ `{' | '.join(alarmes_detectados)}`\n\n"
     else:
@@ -292,7 +372,7 @@ def processar_e_enviar():
     msg += f"• *CO₂ Total Evitado:* `{co2_evitado:.2f} kg` (~{arvores_equiv} árvores)"
 
     enviar_telegram(msg)
-    print("Relatório completo enviado com sucesso!")
+    print("Processo concluído com sucesso!")
 
 if __name__ == "__main__":
-    processar_e_enviar()
+    main()
