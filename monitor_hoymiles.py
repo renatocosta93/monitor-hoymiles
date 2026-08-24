@@ -13,8 +13,8 @@ HOYMILES_PASS = "mcosta295@"
 TELEGRAM_BOT_TOKEN = "8946039720:AAF7U0QokemhGv_5iTzVj9L6IGB1C1kOvhE"
 TELEGRAM_CHAT_ID = "1020154663"
 
-POTENCIA_INSTALADA_WP = 2000.0  # Potência total dos módulos instalados (em Wp)
-TARIFA_KWH = 0.88               # Valor médio da sua tarifa de energia (R$/kWh)
+POTENCIA_INSTALADA_WP = 2000.0  # Potência total instalada (Wp)
+TARIFA_KWH = 0.88               # Tarifa de energia (R$/kWh)
 
 # Fuso Horário de Brasília (UTC-3)
 FUSO_BR = timezone(timedelta(hours=-3))
@@ -44,7 +44,7 @@ def converter_co2(valor):
 def extrair_campo(obj, chaves):
     if isinstance(obj, dict):
         for k in chaves:
-            if k in obj and obj[k] not in [None, "", "--"]:
+            if k in obj and obj[k] not in [None, "", "--", "null"]:
                 return obj[k]
     return None
 
@@ -62,34 +62,45 @@ def enviar_telegram(mensagem):
         print(f"Erro ao enviar Telegram: {e}")
 
 def main():
-    print("Iniciando coleta avançada Playwright...")
+    print("Iniciando monitoramento Hoymiles...")
     captured_data = []
-    auth_token = None
-    captured_sid = None
+    auth_headers = {}
+    station_id = None
+
+    def interceptar_requisicao(request):
+        nonlocal auth_headers
+        try:
+            if "pvm-api" in request.url or "hoymiles" in request.url:
+                headers = request.headers
+                token = headers.get("authorization") or headers.get("token") or headers.get("x-access-token")
+                if token and len(token) > 15:
+                    auth_headers = {
+                        "Content-Type": "application/json",
+                        "Accept": "application/json, text/plain, */*",
+                        "Authorization": token,
+                        "token": token,
+                        "User-Agent": headers.get("user-agent", "Mozilla/5.0"),
+                        "Origin": "https://global.hoymiles.com",
+                        "Referer": "https://global.hoymiles.com/website/login"
+                    }
+        except Exception:
+            pass
 
     def interceptar_resposta(response):
-        nonlocal auth_token, captured_sid
+        nonlocal station_id
         try:
-            # Captura token nos headers de envio
-            req_headers = response.request.headers
-            token = req_headers.get("authorization") or req_headers.get("token")
-            if token and len(token) > 20 and not auth_token:
-                auth_token = token
-
             if "application/json" in response.headers.get("content-type", ""):
                 data = response.json()
                 if isinstance(data, dict):
                     captured_data.append(data)
-                    # Procura o SID da usina
+                    # Busca o ID da Usina
                     d = data.get("data", {})
                     if isinstance(d, dict):
                         sid = d.get("id") or d.get("sid") or d.get("station_id")
-                        if sid and not captured_sid:
-                            captured_sid = sid
+                        if sid and not station_id: station_id = str(sid)
                     elif isinstance(d, list) and len(d) > 0 and isinstance(d[0], dict):
                         sid = d[0].get("id") or d[0].get("sid")
-                        if sid and not captured_sid:
-                            captured_sid = sid
+                        if sid and not station_id: station_id = str(sid)
         except Exception:
             pass
 
@@ -100,10 +111,11 @@ def main():
             viewport={"width": 1440, "height": 900}
         )
         page = context.new_page()
+        page.on("request", interceptar_requisicao)
         page.on("response", interceptar_resposta)
 
         try:
-            print("1. Realizando login...")
+            print("1. Efetuando Login...")
             page.goto("https://global.hoymiles.com/website/login", wait_until="networkidle", timeout=60000)
             page.wait_for_timeout(2000)
 
@@ -119,15 +131,21 @@ def main():
             page.wait_for_selector(".station-name, .plant-name, .el-table__row, a[href*='overview']", timeout=25000)
             page.wait_for_timeout(4000)
 
-            print("2. Acessando usina...")
+            # 2. Abre a usina
+            print("2. Acessando painel da Usina...")
             usina_btn = page.locator(".station-name, .plant-name, .el-table__row, a[href*='overview']").first
             if usina_btn.is_visible():
                 usina_btn.click()
                 page.wait_for_timeout(6000)
                 page.wait_for_load_state("networkidle")
 
-            # 3. Clica especificamente na aba de Dispositivos para carregar microinversores
-            print("3. Abrindo dispositivos...")
+            # Identifica SID da URL caso não capturado
+            if not station_id:
+                url_match = re.search(r'[?&]id=(\d+)', page.url)
+                if url_match: station_id = url_match.group(1)
+
+            # 3. Navega para a aba de Dispositivos e expande os microinversores
+            print("3. Carregando dispositivos e componentes...")
             for tab_txt in ["Dispositivo", "Dispositivos", "Device", "Devices", "Equipamento", "Layout"]:
                 try:
                     tab = page.get_by_text(tab_txt, exact=False).first
@@ -135,55 +153,45 @@ def main():
                         tab.click()
                         page.wait_for_timeout(5000)
                         page.wait_for_load_state("networkidle")
+                        
+                        # Clica nos botões de expansão da tabela para abrir detalhes de portas PV1/PV2
+                        expand_icons = page.locator(".el-table__expand-icon, .el-icon-arrow-right").all()
+                        for icon in expand_icons[:5]:
+                            try: icon.click()
+                            except: pass
+                        page.wait_for_timeout(3000)
                         break
                 except Exception:
                     pass
 
-            # 4. Requisições diretas à API usando a sessão do navegador
-            js_script = """
-            async () => {
-                let token = localStorage.getItem('token') || localStorage.getItem('access_token') || sessionStorage.getItem('token') || '';
-                let sid = localStorage.getItem('sid') || localStorage.getItem('station_id') || '';
-                let results = [];
-                let headers = {
-                    'Content-Type': 'application/json',
-                    'Authorization': token,
-                    'token': token
-                };
-                
-                let urls = [
-                    {url: '/pvm-api/dev/select_mi', body: {sid: sid, page: 1, page_size: 50}},
-                    {url: '/pvm-api/dev/select_dtu', body: {sid: sid}},
-                    {url: '/pvm-api/station/find_power_chart', body: {sid: sid}},
-                    {url: '/pvm-api/alarm/select_warn', body: {sid: sid, page: 1, page_size: 20}}
-                ];
-                
-                for(let item of urls) {
-                    try {
-                        let res = await fetch(item.url, {
-                            method: 'POST',
-                            headers: headers,
-                            body: JSON.stringify(item.body)
-                        });
-                        let j = await res.json();
-                        results.push(j);
-                    } catch(e) {}
-                }
-                return results;
-            }
-            """
-            extra_res = page.evaluate(js_script)
-            if extra_res and isinstance(extra_res, list):
-                for item in extra_res:
-                    if isinstance(item, dict):
-                        captured_data.append(item)
-
         except Exception as e:
-            print(f"Aviso Playwright: {e}")
+            print(f"Aviso navegação Playwright: {e}")
         finally:
             browser.close()
 
-    # Variáveis consolidadas
+    # 4. Requisições complementares diretas via API com os cabeçalhos autenticados
+    if auth_headers:
+        print("4. Coletando telemetria avançada via API...")
+        endpoints = [
+            ("https://global.hoymiles.com/pvm-api/dev/select_mi", {"sid": station_id, "page": 1, "page_size": 50}),
+            ("https://global.hoymiles.com/pvm-api/dev/find_mi_real_data", {"sid": station_id}),
+            ("https://global.hoymiles.com/pvm-api/dev/select_dtu", {"sid": station_id, "page": 1, "page_size": 50}),
+            ("https://global.hoymiles.com/pvm-api/station/find_power_chart", {"sid": station_id, "time": datetime.now(FUSO_BR).strftime("%Y-%m-%d")}),
+            ("https://global.hoymiles.com/pvm-api/alarm/select_warn", {"sid": station_id, "page": 1, "page_size": 20})
+        ]
+        for url, payload in endpoints:
+            try:
+                r = requests.post(url, json=payload, headers=auth_headers, timeout=10)
+                if r.status_code == 200:
+                    j = r.json()
+                    if isinstance(j, dict):
+                        captured_data.append(j)
+            except Exception:
+                pass
+
+    # ==========================================
+    # PROCESSAMENTO E EXTRAÇÃO DOS DADOS
+    # ==========================================
     real_power_val = None
     today_eq_raw = None
     month_eq_raw = None
@@ -203,7 +211,7 @@ def main():
         nonlocal peak_power, co2_raw, start_time_str, grid_v, grid_f, dtu_signal, last_sync
         
         if isinstance(obj, dict):
-            # Potência e Energia
+            # Potência Instantânea e Geração
             p = extrair_campo(obj, ["real_power", "realPower", "pac", "power", "real_p"])
             if p is not None and real_power_val is None:
                 try: real_power_val = float(str(p).replace(",", "."))
@@ -226,32 +234,32 @@ def main():
             co2 = extrair_campo(obj, ["co2_emission_reduction", "co2_eq", "co2_reduction"])
             if co2 is not None and co2_raw is None: co2_raw = co2
 
-            # Extração da hora de início e pico pela curva solar (power_chart)
-            chart_list = extrair_campo(obj, ["chart_list", "power_list", "points", "detail"])
+            # Extração da Curva Diária (Início de Geração e Pico Real)
+            chart_list = extrair_campo(obj, ["chart_list", "power_list", "points", "detail", "list"])
             if chart_list and isinstance(chart_list, list):
                 for pt in chart_list:
-                    if isinstance(pt, dict):
-                        p_val = float(str(pt.get("val") or pt.get("power") or 0).replace(",", "."))
-                        p_time = str(pt.get("time") or pt.get("date") or "")
-                        if p_val > 10 and not start_time_str and p_time:
-                            start_time_str = p_time.split(" ")[-1][:5]
-                        if p_val > peak_power:
-                            peak_power = p_val
+                    if isinstance(pt, dict) and ("val" in pt or "power" in pt):
+                        val_num = float(str(pt.get("val") or pt.get("power") or 0).replace(",", "."))
+                        time_val = str(pt.get("time") or pt.get("date") or "")
+                        if val_num > 10 and not start_time_str and time_val:
+                            start_time_str = time_val.split(" ")[-1][:5]
+                        if val_num > peak_power:
+                            peak_power = val_num
 
-            # Rede Elétrica
+            # Tensão e Frequência CA
             gv = extrair_campo(obj, ["grid_voltage", "gridVoltage", "v_ac", "vac", "voltage", "vol"])
             if gv is not None and grid_v == "--": grid_v = str(gv)
 
             gf = extrair_campo(obj, ["grid_frequency", "gridFrequency", "frequency", "fac", "freq"])
             if gf is not None and grid_f == "--": grid_f = str(gf)
 
-            # DTU
+            # DTU & Sincronismo
             sig = extrair_campo(obj, ["csq", "signal", "rssi", "dtu_rssi", "link_status"])
             if sig is not None and dtu_signal == "--": dtu_signal = f"{sig}%"
 
             sync = extrair_campo(obj, ["last_upload_time", "upload_time", "report_time", "update_time"])
             if sync is not None and last_sync == "--":
-                last_sync = str(sync).split(" ")[-1] if " " in str(sync) else str(sync)
+                last_sync = str(sync).split(" ")[-1][:5] if " " in str(sync) else str(sync)[:5]
 
             # Alarmes
             al = extrair_campo(obj, ["warn_list", "alarm_list", "alarm_code", "alarms"])
@@ -260,14 +268,15 @@ def main():
                     if item_al and str(item_al) not in alarmes_detectados:
                         alarmes_detectados.append(str(item_al))
 
-            # Microinversores
+            # Detecção de Microinversores
             sn = extrair_campo(obj, ["sn", "mi_sn", "inverter_sn", "device_sn", "miSn"])
-            if sn and str(sn).strip() != "" and len(str(sn).strip()) >= 8:
+            if sn and str(sn).strip() != "" and len(str(sn).strip()) >= 6:
                 sn_str = str(sn).strip()
-                if sn_str not in inversores_dict:
-                    inversores_dict[sn_str] = obj
-                else:
-                    inversores_dict[sn_str].update(obj)
+                if not any(ign in sn_str.lower() for ign in ["station", "plant", "dtu"]):
+                    if sn_str not in inversores_dict:
+                        inversores_dict[sn_str] = obj
+                    else:
+                        inversores_dict[sn_str].update(obj)
 
             for v in obj.values():
                 varrer_json(v)
@@ -278,11 +287,11 @@ def main():
     for item in captured_data:
         varrer_json(item)
 
-    # Validação de integridade
     if total_eq_raw is None and today_eq_raw is None:
-        print("Sessão não sincronizada a tempo. Abortando envio para evitar dados vazios.")
+        print("Sessão não sincronizada. Envio abortado para evitar mensagem vazia.")
         return
 
+    # Cálculos Consolidados
     real_power_val = real_power_val if real_power_val is not None else 0.0
     today_kwh = converter_energia(today_eq_raw)
     month_kwh = converter_energia(month_eq_raw)
@@ -304,7 +313,9 @@ def main():
     agora_br = datetime.now(FUSO_BR).strftime("%d/%m/%Y - %H:%M")
     status_icon = "🟢 Online (Gerando)" if real_power_val > 10 else "🌙 Offline / Repouso"
 
-    # Montagem da Mensagem
+    # ==========================================
+    # MONTAGEM DO PAINEL TELEGRAM
+    # ==========================================
     msg = f"☀️ *PAINEL SOLAR HOYMILES* ☀️\n"
     msg += f"📅 `{agora_br}` | {status_icon}\n\n"
 
@@ -320,7 +331,7 @@ def main():
     msg += f"• *Mês Atual:* `R$ {economia_mes:.2f}`\n"
     msg += f"• *Total Acumulado:* `R$ {economia_total:.2f}`\n\n"
 
-    # Se a tensão não estiver no sumário geral, pega do primeiro microinversor
+    # Tensão da rede (obtém do inversor caso não esteja na raiz)
     if grid_v == "--" and inversores_dict:
         for inv in inversores_dict.values():
             v_cand = extrair_campo(inv, ["grid_voltage", "gridVoltage", "v_ac", "vac", "voltage", "vol"])
@@ -334,6 +345,7 @@ def main():
         if grid_f != "--": msg += f" | *Frequência:* `{grid_f} Hz`"
         msg += "\n\n"
 
+    # Microinversores & Placas DC
     if inversores_dict:
         msg += f"🔌 *MICROINVERSORES & PLACAS (DC)*\n"
         for idx, (sn, inv) in enumerate(inversores_dict.items(), start=1):
@@ -348,17 +360,33 @@ def main():
 
             msg += f"• *Inv {idx} ({sn})* — `{' | '.join(detalhes)}`\n"
 
-            ports = inv.get("port_list") or inv.get("channels") or inv.get("pv_list") or inv.get("portList")
-            if ports and isinstance(ports, list):
-                total_p = len(ports)
-                for p_idx, port in enumerate(ports, start=1):
-                    prefix = "└" if p_idx == total_p else "├"
+            # Busca canais PV em formato aninhado ou em chaves planas (p1/u1/i1, pv1_power...)
+            portas_encontradas = []
+            ports_raw = inv.get("port_list") or inv.get("channels") or inv.get("pv_list") or inv.get("portList")
+            
+            if ports_raw and isinstance(ports_raw, list):
+                for p_idx, port in enumerate(ports_raw, start=1):
                     p_w = port.get("power") or port.get("real_power") or port.get("realPower") or "--"
                     p_v = port.get("voltage") or port.get("v_dc") or port.get("vol") or "--"
                     p_i = port.get("current") or port.get("i_dc") or port.get("cur") or "--"
-                    msg += f"  {prefix} PV{p_idx}: `{p_v} V` | `{p_i} A` | `{p_w} W`\n"
+                    portas_encontradas.append((p_idx, p_v, p_i, p_w))
+            else:
+                # Verificação de campos planos
+                for i in range(1, 5):
+                    pw = inv.get(f"pv{i}_power") or inv.get(f"p{i}") or inv.get(f"power{i}")
+                    pv = inv.get(f"pv{i}_vol") or inv.get(f"u{i}") or inv.get(f"vol{i}")
+                    pi = inv.get(f"pv{i}_cur") or inv.get(f"i{i}") or inv.get(f"cur{i}")
+                    if pw is not None or pv is not None:
+                        portas_encontradas.append((i, pv or "--", pi or "--", pw or "--"))
+
+            if portas_encontradas:
+                total_p = len(portas_encontradas)
+                for p_idx, (num_p, p_v, p_i, p_w) in enumerate(portas_encontradas, start=1):
+                    prefix = "└" if p_idx == total_p else "├"
+                    msg += f"  {prefix} PV{num_p}: `{p_v} V` | `{p_i} A` | `{p_w} W`\n"
         msg += "\n"
 
+    # Hardware & Diagnóstico
     msg += f"📡 *HARDWARE & DIAGNÓSTICO*\n"
     if dtu_signal != "--" or last_sync != "--":
         msg += f"• *DTU Wi-Fi:* `{dtu_signal}` | *Último Sync:* `{last_sync}`\n"
@@ -368,6 +396,7 @@ def main():
     else:
         msg += f"• *Alarmes:* 🟢 Nenhum alarme ativo\n\n"
 
+    # Ambiental
     msg += f"🌱 *IMPACTO AMBIENTAL*\n"
     msg += f"• *CO₂ Total Evitado:* `{co2_evitado:.2f} kg` (~{arvores_equiv} árvores)"
 
