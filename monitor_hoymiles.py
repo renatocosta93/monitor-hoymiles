@@ -13,22 +13,11 @@ HOYMILES_PASS = "mcosta295@"
 TELEGRAM_BOT_TOKEN = "8946039720:AAF7U0QokemhGv_5iTzVj9L6IGB1C1kOvhE"
 TELEGRAM_CHAT_ID = "1020154663"
 
-POTENCIA_INSTALADA_WP = 2000.0  # Potência total da usina (Wp)
-TARIFA_KWH = 0.88               # Tarifa de energia (R$/kWh)
+POTENCIA_INSTALADA_WP = 2000.0  # Potência total dos painéis (Wp)
+TARIFA_KWH = 0.88               # Valor da tarifa de energia (R$/kWh)
 
 # Fuso Horário de Brasília (UTC-3)
 FUSO_BR = timezone(timedelta(hours=-3))
-
-captured_data = []
-
-def interceptar_resposta(response):
-    try:
-        if "application/json" in response.headers.get("content-type", ""):
-            data = response.json()
-            if isinstance(data, dict):
-                captured_data.append({"url": response.url, "data": data})
-    except Exception:
-        pass
 
 def converter_energia(valor):
     if valor is None:
@@ -72,8 +61,17 @@ def enviar_telegram(mensagem):
     except Exception as e:
         print(f"Erro ao enviar Telegram: {e}")
 
-def main():
-    print("Iniciando coleta Playwright com navegação estendida...")
+def coletar_dados():
+    captured_data = []
+
+    def interceptar_resposta(response):
+        try:
+            if "application/json" in response.headers.get("content-type", ""):
+                data = response.json()
+                if isinstance(data, dict):
+                    captured_data.append(data)
+        except Exception:
+            pass
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
@@ -85,9 +83,9 @@ def main():
         page.on("response", interceptar_resposta)
 
         try:
-            # 1. Login
+            print("1. Realizando login...")
             page.goto("https://global.hoymiles.com/website/login", wait_until="networkidle", timeout=60000)
-            page.wait_for_timeout(3000)
+            page.wait_for_timeout(2000)
 
             page.locator("input[type='text'], input[placeholder*='usuário' i], input[placeholder*='user' i], input[placeholder*='account' i]").first.fill(HOYMILES_USER)
             page.locator("input[type='password']").first.fill(HOYMILES_PASS)
@@ -98,36 +96,44 @@ def main():
 
             page.locator("button[type='submit'], button.el-button--primary, button:has-text('Entrar'), button:has-text('Login')").first.click()
 
-            page.wait_for_timeout(10000)
-            page.wait_for_load_state("networkidle")
+            # Aguarda a tabela/painel aparecer
+            page.wait_for_selector(".station-name, .plant-name, .el-table__row, a[href*='overview']", timeout=25000)
+            page.wait_for_timeout(5000)
 
-            # 2. Acessar usina
-            usina_btn = page.locator(".station-name, .plant-name, .table-row, a[href*='overview']").first
+            print("2. Acessando visão detalhada da usina...")
+            usina_btn = page.locator(".station-name, .plant-name, .el-table__row, a[href*='overview']").first
             if usina_btn.is_visible():
                 usina_btn.click()
-                page.wait_for_timeout(5000)
+                page.wait_for_timeout(8000)
+                page.wait_for_load_state("networkidle")
 
-            # 3. Navegar nas abas internas de componentes e dispositivos
-            tabs_para_clicar = [
-                "//div[contains(@class, 'el-tabs__item') and (contains(., 'Dispositivo') or contains(., 'Device') or contains(., 'Equipamento'))]",
-                "//div[contains(@class, 'el-tabs__item') and (contains(., 'Layout') or contains(., 'Componente'))]",
-                "//li[contains(@class, 'el-menu-item') and (contains(., 'Dispositivo') or contains(., 'Device'))]"
-            ]
-
-            for selector in tabs_para_clicar:
-                elem = page.locator(selector).first
-                if elem.is_visible():
-                    elem.click()
-                    page.wait_for_timeout(5000)
-                    page.wait_for_load_state("networkidle")
+            print("3. Navegando para dispositivos...")
+            for seletor in ["text='Dispositivo'", "text='Device'", "text='Equipamento'", ".el-tabs__item:has-text('Dispositivo')"]:
+                try:
+                    btn = page.locator(seletor).first
+                    if btn.is_visible():
+                        btn.click()
+                        page.wait_for_timeout(6000)
+                        break
+                except Exception:
+                    pass
 
         except Exception as e:
-            print(f"Aviso na navegação: {e}")
+            print(f"Aviso durante navegação: {e}")
         finally:
             browser.close()
 
-    # Variáveis consolidadas
-    real_power_val = 0.0
+    return captured_data
+
+def processar_e_enviar():
+    captured_data = coletar_dados()
+
+    # Se não capturou nada, tenta uma segunda vez antes de desistir
+    if not captured_data:
+        print("Primeira tentativa sem pacotes. Tentando novamente...")
+        captured_data = coletar_dados()
+
+    real_power_val = None
     today_eq_raw = None
     month_eq_raw = None
     total_eq_raw = None
@@ -137,18 +143,16 @@ def main():
     grid_v = "--"
     grid_f = "--"
     grid_i = "--"
-    power_factor = "--"
     alarmes_detectados = []
     inversores_dict = {}
 
     def varrer_json(obj):
         nonlocal real_power_val, today_eq_raw, month_eq_raw, total_eq_raw
-        nonlocal peak_power, co2_raw, start_time_raw, grid_v, grid_f, grid_i, power_factor
+        nonlocal peak_power, co2_raw, start_time_raw, grid_v, grid_f, grid_i
         
         if isinstance(obj, dict):
-            # Potência e Energia
             p = extrair_campo(obj, ["real_power", "realPower", "pac", "power", "real_p"])
-            if p is not None and real_power_val == 0.0:
+            if p is not None and real_power_val is None:
                 try: real_power_val = float(str(p).replace(",", "."))
                 except: pass
 
@@ -169,12 +173,9 @@ def main():
             co2 = extrair_campo(obj, ["co2_emission_reduction", "co2_eq", "co2_reduction"])
             if co2 is not None and co2_raw is None: co2_raw = co2
 
-            # Início de geração / Horário de ativação
-            st = extrair_campo(obj, ["start_time", "start_gen_time", "online_time", "create_time", "connect_time", "grid_connection_date"])
-            if st is not None and start_time_raw is None:
-                start_time_raw = str(st)
+            st = extrair_campo(obj, ["start_time", "start_gen_time", "online_time", "create_time"])
+            if st is not None and start_time_raw is None: start_time_raw = str(st)
 
-            # Rede Elétrica CA
             gv = extrair_campo(obj, ["grid_voltage", "gridVoltage", "v_ac", "vac", "voltage", "vol"])
             if gv is not None and grid_v == "--": grid_v = str(gv)
 
@@ -184,20 +185,15 @@ def main():
             gi = extrair_campo(obj, ["grid_current", "gridCurrent", "i_ac", "iac", "current"])
             if gi is not None and grid_i == "--": grid_i = str(gi)
 
-            pf = extrair_campo(obj, ["power_factor", "powerFactor", "cos_phi", "pf"])
-            if pf is not None and power_factor == "--": power_factor = str(pf)
-
-            # Alarmes
             al = extrair_campo(obj, ["warn_list", "alarm_list", "alarm_code", "alarms"])
             if al and isinstance(al, list):
                 for item_al in al:
                     if item_al and str(item_al) not in alarmes_detectados:
                         alarmes_detectados.append(str(item_al))
 
-            # Microinversores
-            sn = extrair_campo(obj, ["sn", "mi_sn", "inverter_sn", "device_sn"])
-            if sn and str(sn).isdigit() and len(str(sn)) >= 10:
-                sn_str = str(sn)
+            sn = extrair_campo(obj, ["sn", "mi_sn", "inverter_sn", "device_sn", "miSn"])
+            if sn and str(sn).strip() != "":
+                sn_str = str(sn).strip()
                 if sn_str not in inversores_dict:
                     inversores_dict[sn_str] = obj
                 else:
@@ -210,9 +206,14 @@ def main():
                 varrer_json(item)
 
     for item in captured_data:
-        varrer_json(item.get("data", {}))
+        varrer_json(item)
 
-    # Conversões e Cálculos
+    # TRAVA DE SEGURANÇA: se o total histórico não foi lido, houve falha de rede da sessão
+    if total_eq_raw is None and today_eq_raw is None:
+        print("Falha na sincronização dos dados com a nuvem Hoymiles. Mensagem cancelada para evitar envio zerado.")
+        return
+
+    real_power_val = real_power_val if real_power_val is not None else 0.0
     today_kwh = converter_energia(today_eq_raw)
     month_kwh = converter_energia(month_eq_raw)
     total_kwh = converter_energia(total_eq_raw)
@@ -227,19 +228,13 @@ def main():
     co2_evitado = converter_co2(co2_raw)
     arvores_equiv = round(co2_evitado / 20.0, 2)
 
-    # Formatação de Início de Geração
     inicio_str = ""
     if start_time_raw:
-        if " " in start_time_raw:
-            inicio_str = f" | 🌅 Início: {start_time_raw.split(' ')[-1][:5]}"
-        else:
-            inicio_str = f" | 🌅 Início: {start_time_raw[:5]}"
+        inicio_str = f" | 🌅 Início: {start_time_raw.split(' ')[-1][:5]}"
 
-    # Data e hora no Fuso Horário de Brasília
     agora_br = datetime.now(FUSO_BR).strftime("%d/%m/%Y - %H:%M")
     status_icon = "🟢 Online (Gerando)" if real_power_val > 10 else "🌙 Offline / Repouso"
 
-    # Montagem da Mensagem
     msg = f"☀️ *PAINEL SOLAR HOYMILES* ☀️\n"
     msg += f"📅 `{agora_br}` | {status_icon}\n\n"
 
@@ -278,12 +273,12 @@ def main():
 
             msg += f"• *{sn}* — `{' | '.join(detalhes)}`\n"
 
-            ports = inv.get("port_list") or inv.get("channels") or inv.get("pv_list")
+            ports = inv.get("port_list") or inv.get("channels") or inv.get("pv_list") or inv.get("portList")
             if ports and isinstance(ports, list):
                 for p_idx, port in enumerate(ports, start=1):
-                    p_w = port.get("power") or port.get("real_power") or "--"
-                    p_v = port.get("voltage") or port.get("v_dc") or "--"
-                    p_i = port.get("current") or port.get("i_dc") or "--"
+                    p_w = port.get("power") or port.get("real_power") or port.get("realPower") or "--"
+                    p_v = port.get("voltage") or port.get("v_dc") or port.get("vol") or "--"
+                    p_i = port.get("current") or port.get("i_dc") or port.get("cur") or "--"
                     msg += f"  └ PV{p_idx}: `{p_v} V` | `{p_i} A` | `{p_w} W`\n"
         msg += "\n"
 
@@ -297,7 +292,7 @@ def main():
     msg += f"• *CO₂ Total Evitado:* `{co2_evitado:.2f} kg` (~{arvores_equiv} árvores)"
 
     enviar_telegram(msg)
-    print("Relatório enviado com sucesso!")
+    print("Relatório completo enviado com sucesso!")
 
 if __name__ == "__main__":
-    main()
+    processar_e_enviar()
