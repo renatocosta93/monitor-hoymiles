@@ -376,28 +376,7 @@ def main():
         estado["fechamento_enviado"] = False
 
     # ==========================================
-    # 2. ATIVAÇÃO MATINAL INCONDICIONAL (05h - 11h)
-    # ==========================================
-    if (5 <= hora_int <= 11) and not estado.get("dia_ativo", False):
-        estado["dia_ativo"] = True
-        estado["fechamento_enviado"] = False
-        salvar_estado(estado)
-
-        meta_dia = estado.get("meta_kwh", 18.0)
-        msg_manha = f"🌅 *USINA ATIVADA — BOM DIA!* ☀️\n"
-        msg_manha += f"📅 `{hora_str}` | Vargem Grande Paulista - SP\n\n"
-        msg_manha += f"🌤️ *PREVISÃO DO TEMPO*\n"
-        msg_manha += f"• {estado.get('previsao_desc')}\n\n"
-        msg_manha += f"🎯 *META DE GERAÇÃO PARA HOJE*\n"
-        msg_manha += f"• *Meta Estimada:* `{fmt_br(meta_dia, 2)} kWh` (~R$ {fmt_br(meta_dia*TARIFA_KWH, 2)})\n"
-        msg_manha += f"• *Capacidade:* `{fmt_br(POTENCIA_INSTALADA_WP/1000.0, 1)} kWp`\n"
-        msg_manha += f"• *Status:* 🟢 Equipamentos ligados e operando\n\n"
-        msg_manha += f"🌐 *Painel ao vivo:* {PAINEL_WEB_URL}"
-        enviar_telegram(msg_manha)
-        return
-
-    # ==========================================
-    # 3. COLETA DE DADOS NA HOYMILES (API + DOM)
+    # 2. COLETA DE DADOS NA HOYMILES (API + DOM)
     # ==========================================
     captured_data = []
     auth_headers = {}
@@ -649,6 +628,27 @@ def main():
         "chart_values": chart_values,
         "inversores_html": inv_html or "<p style='color: var(--text-muted); font-size: 13px;'>Microinversores sincronizados via DTU.</p>"
     })
+
+    # ==========================================
+    # 3. ATIVAÇÃO MATINAL INCONDICIONAL (05h - 11h)
+    # ==========================================
+    if (5 <= hora_int <= 11) and not estado.get("dia_ativo", False):
+        estado["dia_ativo"] = True
+        estado["fechamento_enviado"] = False
+        salvar_estado(estado)
+
+        meta_dia = estado.get("meta_kwh", 18.0)
+        msg_manha = f"🌅 *USINA ATIVADA — BOM DIA!* ☀️\n"
+        msg_manha += f"📅 `{hora_str}` | Vargem Grande Paulista - SP\n\n"
+        msg_manha += f"🌤️ *PREVISÃO DO TEMPO*\n"
+        msg_manha += f"• {estado.get('previsao_desc')}\n\n"
+        msg_manha += f"🎯 *META DE GERAÇÃO PARA HOJE*\n"
+        msg_manha += f"• *Meta Estimada:* `{fmt_br(meta_dia, 2)} kWh` (~R$ {fmt_br(meta_dia*TARIFA_KWH, 2)})\n"
+        msg_manha += f"• *Capacidade:* `{fmt_br(POTENCIA_INSTALADA_WP/1000.0, 1)} kWp`\n"
+        msg_manha += f"• *Status:* 🟢 Equipamentos ligados e operando\n\n"
+        msg_manha += f"🌐 *Painel ao vivo:* {PAINEL_WEB_URL}"
+        enviar_telegram(msg_manha)
+        return
 
     # ==========================================
     # 4. ENCERRAMENTO DO DIA (Após 17h00)
