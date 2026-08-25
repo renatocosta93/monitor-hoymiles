@@ -64,7 +64,7 @@ def obter_previsao_tempo():
         daily = r.get("daily", {})
         
         rad_mj = daily.get("shortwave_radiation_sum", [18.0])[0]
-        hsp = round(rad_mj / 3.6, 1) # Converte para Horas de Sol Pleno (HSP)
+        hsp = round(rad_mj / 3.6, 1)
         t_max = daily.get("temperature_2m_max", [28])[0]
         t_min = daily.get("temperature_2m_min", [18])[0]
         w_code = daily.get("weathercode", [0])[0]
@@ -226,7 +226,6 @@ def gerar_painel_html(dados):
             <p class="location">📍 Vargem Grande Paulista - SP | Atualizado às {dados['hora_atual']}</p>
         </header>
 
-        <!-- Potência em Tempo Real & Meta -->
         <div class="card power-card">
             <div class="stat-label">Potência Instantânea de Geração</div>
             <div class="power-val">{dados['real_power']} <span style="font-size: 24px;">W</span></div>
@@ -243,7 +242,6 @@ def gerar_painel_html(dados):
             </div>
         </div>
 
-        <!-- Gráfico de Produção Horária -->
         <div class="card">
             <div class="stat-label">Curva de Produção por Horário (Hoje)</div>
             <div class="chart-box">
@@ -251,7 +249,6 @@ def gerar_painel_html(dados):
             </div>
         </div>
 
-        <!-- Cards com Acumulados -->
         <div class="grid-cards">
             <div class="card">
                 <div class="stat-label">Geração de Hoje</div>
@@ -283,7 +280,6 @@ def gerar_painel_html(dados):
             </div>
         </div>
 
-        <!-- Telemetria Elétrica e Equipamentos -->
         <div class="card">
             <div class="stat-label" style="margin-bottom: 8px;">Telemetria da Rede Elétrica & Microinversores</div>
             <p style="font-size: 14px; margin-bottom: 12px;">
@@ -355,7 +351,7 @@ def main():
 
     estado = carregar_estado()
     
-    # Reset diário de estado
+    # Novo dia detectado
     if estado.get("data_atual") != data_str:
         estado["data_atual"] = data_str
         estado["dia_ativo"] = False
@@ -365,7 +361,7 @@ def main():
         estado["previsao_desc"] = f"{prev['desc']} ({prev['t_min']}°C a {prev['t_max']}°C, {prev['hsp']} HSP)"
         salvar_estado(estado)
 
-    # Coleta Playwright dos dados da Hoymiles
+    # Coleta Playwright
     captured_data = []
     auth_headers = {}
     station_id = None
@@ -422,7 +418,6 @@ def main():
                         break
                 except: pass
 
-            # Requisição interna para curva de potência horária
             js_chart = """
             async () => {
                 let token = localStorage.getItem('token') || localStorage.getItem('access_token') || '';
@@ -488,7 +483,6 @@ def main():
                 try: grid_v_num = float(str(gv).replace(",", "."))
                 except: pass
 
-            # Curva de Geração Horária
             c_list = extrair_campo(obj, ["chart_list", "power_list", "points", "detail"])
             if c_list and isinstance(c_list, list) and len(c_list) > len(chart_points):
                 chart_points = c_list
@@ -517,7 +511,6 @@ def main():
     hsp = round(today_kwh / (POTENCIA_INSTALADA_WP / 1000.0), 2) if POTENCIA_INSTALADA_WP > 0 else 0
     arvores_calc = round(co2_kg / 20.0, 2)
 
-    # Monta pontos para o gráfico horário (Chart.js)
     chart_labels = []
     chart_values = []
     if chart_points:
@@ -531,12 +524,10 @@ def main():
                     chart_values.append(round(v_num, 1))
                     if v_num > peak_power: peak_power = v_num
     
-    # Caso a API não envie curva completa, gera grade horária padrão das leituras
     if not chart_labels:
         chart_labels = ["06:00", "08:00", "10:00", "12:00", "14:00", "16:00", "18:00"]
         chart_values = [0, round(real_power_val * 0.4, 1), round(real_power_val * 0.8, 1), round(peak_power or real_power_val, 1), round(real_power_val * 0.7, 1), round(real_power_val * 0.3, 1), 0]
 
-    # Renderiza Microinversores no HTML
     inv_html = ""
     for idx, (sn, inv) in enumerate(inversores_dict.items(), start=1):
         p_inv = inv.get("real_power") or inv.get("power") or "--"
@@ -553,7 +544,6 @@ def main():
                 Temperatura: <b>{t_inv}°C</b> | Tensão CA: <b>{v_inv} V</b>
             </div>
         """
-        # Portas PV1 e PV2
         for pv_i in range(1, 5):
             pw = inv.get(f"pv{pv_i}_power") or inv.get(f"p{pv_i}")
             pv = inv.get(f"pv{pv_i}_vol") or inv.get(f"u{pv_i}")
@@ -593,8 +583,8 @@ def main():
     # FLUXO DE DISPAROS DO TELEGRAM
     # ==========================================
 
-    # 1. ATIVAÇÃO MATINAL
-    if (5 <= hora_int <= 10) and real_power_val > 15 and not estado.get("dia_ativo", False):
+    # 1. ATIVAÇÃO MATINAL CORRIGIDA (Dispara se houver geração > 5W ou energia acumulada hoje > 0)
+    if (5 <= hora_int <= 11) and (real_power_val > 5 or today_kwh > 0.001) and not estado.get("dia_ativo", False):
         estado["dia_ativo"] = True
         estado["fechamento_enviado"] = False
         salvar_estado(estado)
@@ -610,8 +600,8 @@ def main():
         enviar_telegram(msg_manha)
         return
 
-    # 2. ENCERRAMENTO DO DIA (Dispara ao anoitecer se houve geração no dia)
-    if (hora_int >= 17 or real_power_val <= 10) and (today_kwh > 0 or estado.get("dia_ativo", False)) and not estado.get("fechamento_enviado", False):
+    # 2. ENCERRAMENTO DO DIA
+    if (hora_int >= 17 or real_power_val <= 10) and (today_kwh > 0 or estado.get("dia_ativo", False)) and not estado.get("fechamento_enviado", False) and hora_int >= 16:
         estado["dia_ativo"] = False
         estado["fechamento_enviado"] = True
         salvar_estado(estado)
@@ -690,7 +680,7 @@ def main():
 
         enviar_telegram(msg_padrao)
     else:
-        print("Período noturno. Painel atualizado silenciosamente sem envio de mensagens.")
+        print("Aguardando ativação matinal ou sistema em repouso.")
 
 if __name__ == "__main__":
     main()
