@@ -17,8 +17,8 @@ TELEGRAM_CHAT_ID = "1020154663"
 # Link do Painel Web no GitHub Pages:
 PAINEL_WEB_URL = "https://renatocosta93.github.io/monitor-hoymiles/"
 
-POTENCIA_INSTALADA_WP = 4500.0  # 4.5 kW conforme seu aplicativo S-Miles
-TARIFA_KWH = 0.88               # Tarifa de energia (R$/kWh)
+POTENCIA_INSTALADA_WP = 4500.0  # Capacidade de 4.5 kW conforme App S-Miles
+TARIFA_KWH = 0.88               # Tarifa média de energia (R$/kWh)
 
 # Localização: Vargem Grande Paulista - SP
 LATITUDE = -23.6028
@@ -26,13 +26,48 @@ LONGITUDE = -47.0258
 
 FUSO_BR = timezone(timedelta(hours=-3))
 
+# ==========================================
+# FUNÇÕES AUXILIARES DE FORMATAÇÃO E CÁLCULO
+# ==========================================
 def fmt_br(valor, dec=2):
-    """Formata números com vírgula decimal brasileira."""
+    """Formata números com padrão brasileiro (vírgula decimal)."""
     try:
         num = float(valor)
         return f"{num:,.{dec}f}".replace(",", "X").replace(".", ",").replace("X", ".")
     except Exception:
         return "0,00"
+
+def converter_energia(valor):
+    """Converte valores de energia em kWh."""
+    if valor is None:
+        return 0.0
+    try:
+        num = float(str(valor).replace(",", "."))
+        if num > 500:  # Trata entradas em Wh
+            return round(num / 1000.0, 3)
+        return round(num, 3)
+    except Exception:
+        return 0.0
+
+def converter_co2(valor):
+    """Converte valores de CO2 evitado em kg."""
+    if valor is None:
+        return 0.0
+    try:
+        num = float(str(valor).replace(",", "."))
+        if num > 500:
+            return round(num / 1000.0, 2)
+        return round(num, 2)
+    except Exception:
+        return 0.0
+
+def extrair_campo(obj, chaves):
+    """Busca chaves em dicionários de forma segura."""
+    if isinstance(obj, dict):
+        for k in chaves:
+            if k in obj and obj[k] not in [None, "", "--", "null"]:
+                return obj[k]
+    return None
 
 def carregar_estado():
     if os.path.exists("state.json"):
@@ -64,7 +99,7 @@ def obter_previsao_tempo():
         daily = r.get("daily", {})
         
         rad_mj = daily.get("shortwave_radiation_sum", [18.0])[0]
-        hsp = round(rad_mj / 3.6, 1) # Horas de Sol Pleno
+        hsp = round(rad_mj / 3.6, 1)
         t_max = daily.get("temperature_2m_max", [28])[0]
         t_min = daily.get("temperature_2m_min", [18])[0]
         w_code = daily.get("weathercode", [0])[0]
@@ -80,7 +115,6 @@ def obter_previsao_tempo():
             80: "Pancadas de Chuva"
         }
         desc = condicoes.get(w_code, "Sol entre nuvens")
-        # Meta diária: 4.5 kW * HSP * 0.82
         meta = round((POTENCIA_INSTALADA_WP / 1000.0) * hsp * 0.82, 2)
         if meta < 5.0: meta = 15.0
 
@@ -88,22 +122,6 @@ def obter_previsao_tempo():
     except Exception as e:
         print(f"Aviso previsão: {e}")
         return {"desc": "Ensolarado", "t_max": 28, "t_min": 18, "hsp": 5.0, "meta_kwh": 18.5}
-
-def extrair_campo(obj, chaves):
-    if isinstance(obj, dict):
-        for k in chaves:
-            if k in obj and obj[k] not in [None, "", "--", "null"]:
-                return obj[k]
-    return None
-
-def converter_energia(valor):
-    if valor is None: return 0.0
-    try:
-        num = float(str(valor).replace(",", "."))
-        if num > 500:  # Ex: 67 Wh ou 86000 Wh
-            return round(num / 1000.0, 3)
-        return round(num, 3)
-    except Exception: return 0.0
 
 def enviar_telegram(mensagem):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
@@ -332,6 +350,9 @@ def gerar_painel_html(dados):
     with open("index.html", "w", encoding="utf-8") as f:
         f.write(html)
 
+# ==========================================
+# FUNÇÃO PRINCIPAL
+# ==========================================
 def main():
     agora_br = datetime.now(FUSO_BR)
     hora_int = agora_br.hour
@@ -350,12 +371,12 @@ def main():
         estado["previsao_desc"] = f"{prev['desc']} ({prev['t_min']}°C a {prev['t_max']}°C, {prev['hsp']} HSP)"
         salvar_estado(estado)
 
-    # Destrava automaticamente caso seja de dia
+    # Destrava automaticamente no período diurno
     if hora_int < 16:
         estado["fechamento_enviado"] = False
 
     # ==========================================
-    # 1. ATIVAÇÃO MATINAL INCONDICIONAL (05h - 11h)
+    # 2. ATIVAÇÃO MATINAL INCONDICIONAL (05h - 11h)
     # ==========================================
     if (5 <= hora_int <= 11) and not estado.get("dia_ativo", False):
         estado["dia_ativo"] = True
@@ -376,7 +397,7 @@ def main():
         return
 
     # ==========================================
-    # 2. COLETA DE DADOS NA HOYMILES
+    # 3. COLETA DE DADOS NA HOYMILES (API + DOM)
     # ==========================================
     captured_data = []
     auth_headers = {}
@@ -421,7 +442,7 @@ def main():
             page.locator("button[type='submit'], button.el-button--primary, button:has-text('Entrar')").first.click()
             page.wait_for_timeout(10000)
 
-            # Extração de segurança direto do DOM do Dashboard
+            # Captura visual de segurança do DOM
             js_dom = """
             () => {
                 let text = document.body.innerText || '';
@@ -430,7 +451,7 @@ def main():
             """
             scraped_dom = page.evaluate(js_dom)
 
-            # Executa requisições autenticadas diretas da sessão
+            # Requisições autenticadas da sessão ativa
             js_apis = """
             async () => {
                 let token = localStorage.getItem('token') || localStorage.getItem('access_token') || '';
@@ -522,7 +543,7 @@ def main():
 
     for item in captured_data: varrer(item)
 
-    # Fallback inteligente via DOM caso a API demore a responder
+    # Leitura de contingência pelo texto renderizado na tela
     if real_power_val == 0.0 and scraped_dom.get("all_text"):
         txt = scraped_dom["all_text"]
         m_pow = re.search(r'([\d.,]+)\s*W\b', txt)
@@ -548,7 +569,7 @@ def main():
     hsp = round(today_kwh / (POTENCIA_INSTALADA_WP / 1000.0), 2) if POTENCIA_INSTALADA_WP > 0 else 0
     arvores_calc = round(co2_kg / 20.0, 1) if co2_kg > 0 else round(total_kwh * 0.05, 1)
 
-    # Formatação especial para geração do dia (Wh ou kWh)
+    # Formatação especial para exibição em Wh / kWh
     if today_kwh < 1.0 and today_kwh > 0:
         today_display = f"{int(round(today_kwh * 1000))} Wh ({fmt_br(today_kwh, 2)} kWh)"
     else:
@@ -625,7 +646,7 @@ def main():
     })
 
     # ==========================================
-    # 3. ENCERRAMENTO DO DIA (Após 17h00)
+    # 4. ENCERRAMENTO DO DIA (Após 17h00)
     # ==========================================
     if hora_int >= 17 and real_power_val <= 10 and not estado.get("fechamento_enviado", False) and estado.get("dia_ativo", False):
         estado["dia_ativo"] = False
@@ -650,7 +671,7 @@ def main():
         return
 
     # ==========================================
-    # 4. ALERTA DE ANOMALIAS
+    # 5. ALERTA DE ANOMALIAS
     # ==========================================
     anomalias = []
     if (8 <= hora_int <= 16) and real_power_val < 5 and estado.get("dia_ativo", False):
@@ -673,7 +694,7 @@ def main():
         enviar_telegram(msg_alerta)
 
     # ==========================================
-    # 5. NOTIFICAÇÃO PADRÃO DE PRODUÇÃO (A cada 30 min)
+    # 6. NOTIFICAÇÃO PADRÃO DE PRODUÇÃO (A cada 30 min)
     # ==========================================
     if estado.get("dia_ativo", False) and not estado.get("fechamento_enviado", False):
         status_icon = "🟢 Online (Gerando)" if real_power_val > 10 else "🟡 Baixa Irradiação"
