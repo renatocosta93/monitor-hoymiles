@@ -699,9 +699,9 @@ def main():
         enviar_telegram(msg_alerta)
 
     # ==========================================
-    # 6. NOTIFICAÇÃO PADRÃO DE PRODUÇÃO (A cada 30 min)
+    # 6. NOTIFICAÇÃO PADRÃO DE PRODUÇÃO (A cada 30 min) — EXIGE `dia_ativo` = True E GERAÇÃO REAL
     # ==========================================
-    if estado.get("dia_ativo", False) and not estado.get("fechamento_enviado", False):
+    if estado.get("dia_ativo", False) and not estado.get("fechamento_enviado", False) and (real_power_val > 0 or today_kwh > 0):
         status_icon = "🟢 Online (Gerando)" if real_power_val > 10 else "🟡 Baixa Irradiação"
         pico_str = f" | *Pico:* `{fmt_br(peak_power or real_power_val, 0)} W`"
 
