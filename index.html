@@ -92,21 +92,21 @@
         <header class="header">
             <h1 class="title">☀️ Painel Solar Hoymiles</h1>
             <span class="badge">Online (Gerando)</span>
-            <p class="location">📍 Vargem Grande Paulista - SP | Atualizado às 25/08/2026 - 12:05</p>
+            <p class="location">📍 Vargem Grande Paulista - SP | Atualizado às 25/08/2026 - 12:55</p>
         </header>
 
         <div class="card power-card">
             <div class="stat-label">Potência Instantânea de Geração</div>
-            <div class="power-val">702,4 <span style="font-size: 24px;">W</span></div>
-            <div class="power-sub">15,6% da capacidade total (4500 Wp)</div>
+            <div class="power-val">689,2 <span style="font-size: 24px;">W</span></div>
+            <div class="power-sub">15,3% da capacidade total (4500 Wp)</div>
             
             <div class="progress-box">
                 <div class="progress-labels">
-                    <span>Hoje: 2,94 kWh</span>
-                    <span><b>78,0%</b> da meta (3,77 kWh)</span>
+                    <span>Hoje: 3,52 kWh</span>
+                    <span><b>93,3%</b> da meta (3,77 kWh)</span>
                 </div>
                 <div class="progress-bar">
-                    <div class="progress-fill" style="width: 78.0%;"></div>
+                    <div class="progress-fill" style="width: 93.3%;"></div>
                 </div>
             </div>
         </div>
@@ -121,8 +121,8 @@
         <div class="grid-cards">
             <div class="card">
                 <div class="stat-label">Geração de Hoje</div>
-                <div class="stat-val">2,94 kWh</div>
-                <div class="stat-sub">Economia: R$ 2,59</div>
+                <div class="stat-val">3,52 kWh</div>
+                <div class="stat-sub">Economia: R$ 3,09</div>
             </div>
             <div class="card">
                 <div class="stat-label">Acumulado no Mês</div>
@@ -139,8 +139,8 @@
             </div>
             <div class="card">
                 <div class="stat-label">Pico do Dia</div>
-                <div class="stat-val" style="font-size: 18px;">702 <span style="font-size: 12px;">W</span></div>
-                <div style="font-size: 12px; color: var(--text-muted);">0,65 HSP</div>
+                <div class="stat-val" style="font-size: 18px;">689 <span style="font-size: 12px;">W</span></div>
+                <div style="font-size: 12px; color: var(--text-muted);">0,78 HSP</div>
             </div>
             <div class="card">
                 <div class="stat-label">CO₂ Evitado</div>
@@ -161,7 +161,7 @@
     <script>
         const ctx = document.getElementById('solarChart').getContext('2d');
         const labels = ["06:00", "07:00", "08:00", "10:00", "12:00", "14:00", "16:00", "18:00"];
-        const values = [0, 351.2, 702.4, 1053.6, 1404.8, 842.9, 281.0, 0];
+        const values = [0, 344.6, 689.2, 1033.8, 1378.4, 827.0, 275.7, 0];
 
         new Chart(ctx, {
             type: 'line',
