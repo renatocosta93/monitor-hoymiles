@@ -38,11 +38,6 @@
             color: var(--solar-green);
             border: 1px solid rgba(16, 185, 129, 0.3);
         }
-        .badge.offline {
-            background: rgba(148, 163, 184, 0.15);
-            color: var(--text-muted);
-            border: 1px solid rgba(148, 163, 184, 0.3);
-        }
         .location { color: var(--text-muted); font-size: 13px; margin-top: 6px; }
         
         .card {
@@ -96,22 +91,22 @@
     <div class="container">
         <header class="header">
             <h1 class="title">☀️ Painel Solar Hoymiles</h1>
-            <span class="badge offline">Repouso Noturno (Sem Sol)</span>
-            <p class="location">📍 Vargem Grande Paulista - SP | Atualizado às 25/08/2026 - 07:46</p>
+            <span class="badge">Online (Gerando)</span>
+            <p class="location">📍 Vargem Grande Paulista - SP | Atualizado às 25/08/2026 - 08:35</p>
         </header>
 
         <div class="card power-card">
             <div class="stat-label">Potência Instantânea de Geração</div>
-            <div class="power-val">0,0 <span style="font-size: 24px;">W</span></div>
-            <div class="power-sub">0,0% da capacidade total da usina (2000 Wp)</div>
+            <div class="power-val">209,4 <span style="font-size: 24px;">W</span></div>
+            <div class="power-sub">4,7% da capacidade total (4500 Wp)</div>
             
             <div class="progress-box">
                 <div class="progress-labels">
-                    <span>Meta Diária: 0,00 kWh gerados</span>
-                    <span><b>0,0%</b> atingida (Meta: 3,77 kWh)</span>
+                    <span>Hoje: 274,00 kWh</span>
+                    <span><b>7.267,9%</b> da meta (3,77 kWh)</span>
                 </div>
                 <div class="progress-bar">
-                    <div class="progress-fill" style="width: 0.0%;"></div>
+                    <div class="progress-fill" style="width: 100%;"></div>
                 </div>
             </div>
         </div>
@@ -126,31 +121,31 @@
         <div class="grid-cards">
             <div class="card">
                 <div class="stat-label">Geração de Hoje</div>
-                <div class="stat-val">0,00 <span style="font-size: 15px;">kWh</span></div>
-                <div class="stat-sub">Economia: R$ 0,00</div>
+                <div class="stat-val">274,00 kWh</div>
+                <div class="stat-sub">Economia: R$ 241,12</div>
             </div>
             <div class="card">
                 <div class="stat-label">Acumulado no Mês</div>
-                <div class="stat-val">0,00 <span style="font-size: 15px;">kWh</span></div>
-                <div class="stat-sub">Economia: R$ 0,00</div>
+                <div class="stat-val">86,38 <span style="font-size: 15px;">kWh</span></div>
+                <div class="stat-sub">Economia: R$ 76,02</div>
             </div>
         </div>
 
         <div class="grid-3">
             <div class="card">
                 <div class="stat-label">Total Histórico</div>
-                <div class="stat-val" style="font-size: 18px;">0,00 <span style="font-size: 12px;">kWh</span></div>
-                <div class="stat-sub" style="font-size: 12px;">R$ 0,00</div>
+                <div class="stat-val" style="font-size: 18px;">86,71 <span style="font-size: 12px;">kWh</span></div>
+                <div class="stat-sub" style="font-size: 12px;">R$ 76,30</div>
             </div>
             <div class="card">
                 <div class="stat-label">Pico do Dia</div>
-                <div class="stat-val" style="font-size: 18px;">0 <span style="font-size: 12px;">W</span></div>
-                <div style="font-size: 12px; color: var(--text-muted);">0,00 HSP</div>
+                <div class="stat-val" style="font-size: 18px;">209 <span style="font-size: 12px;">W</span></div>
+                <div style="font-size: 12px; color: var(--text-muted);">60,89 HSP</div>
             </div>
             <div class="card">
                 <div class="stat-label">CO₂ Evitado</div>
-                <div class="stat-val" style="font-size: 18px;">0,00 <span style="font-size: 12px;">kg</span></div>
-                <div style="font-size: 12px; color: var(--solar-green);">~0,0 árvores</div>
+                <div class="stat-val" style="font-size: 18px;">86,45 <span style="font-size: 12px;">kg</span></div>
+                <div style="font-size: 12px; color: var(--solar-green);">~4 árvores</div>
             </div>
         </div>
 
@@ -165,8 +160,8 @@
 
     <script>
         const ctx = document.getElementById('solarChart').getContext('2d');
-        const labels = ["06:00", "08:00", "10:00", "12:00", "14:00", "16:00", "18:00"];
-        const values = [0, 0.0, 0.0, 0.0, 0.0, 0.0, 0];
+        const labels = ["06:00", "07:00", "08:00", "10:00", "12:00", "14:00", "16:00", "18:00"];
+        const values = [0, 104.7, 209.4, 314.1, 418.8, 251.3, 83.8, 0];
 
         new Chart(ctx, {
             type: 'line',
