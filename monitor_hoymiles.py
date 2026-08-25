@@ -17,8 +17,8 @@ TELEGRAM_CHAT_ID = "1020154663"
 # Link do Painel Web no GitHub Pages:
 PAINEL_WEB_URL = "https://renatocosta93.github.io/monitor-hoymiles/"
 
-POTENCIA_INSTALADA_WP = 2000.0  # Potência total instalada dos painéis (Wp)
-TARIFA_KWH = 0.88               # Tarifa média de energia (R$/kWh)
+POTENCIA_INSTALADA_WP = 4500.0  # 4.5 kW conforme seu aplicativo S-Miles
+TARIFA_KWH = 0.88               # Tarifa de energia (R$/kWh)
 
 # Localização: Vargem Grande Paulista - SP
 LATITUDE = -23.6028
@@ -27,7 +27,7 @@ LONGITUDE = -47.0258
 FUSO_BR = timezone(timedelta(hours=-3))
 
 def fmt_br(valor, dec=2):
-    """Formata números com padrão brasileiro (vírgula decimal)."""
+    """Formata números com vírgula decimal brasileira."""
     try:
         num = float(valor)
         return f"{num:,.{dec}f}".replace(",", "X").replace(".", ",").replace("X", ".")
@@ -45,7 +45,7 @@ def carregar_estado():
         "dia_ativo": False,
         "fechamento_enviado": False,
         "data_atual": "",
-        "meta_kwh": 10.0,
+        "meta_kwh": 18.0,
         "previsao_desc": "Ensolarado",
         "ultimo_alerta": ""
     }
@@ -64,7 +64,7 @@ def obter_previsao_tempo():
         daily = r.get("daily", {})
         
         rad_mj = daily.get("shortwave_radiation_sum", [18.0])[0]
-        hsp = round(rad_mj / 3.6, 1)
+        hsp = round(rad_mj / 3.6, 1) # Horas de Sol Pleno
         t_max = daily.get("temperature_2m_max", [28])[0]
         t_min = daily.get("temperature_2m_min", [18])[0]
         w_code = daily.get("weathercode", [0])[0]
@@ -80,29 +80,14 @@ def obter_previsao_tempo():
             80: "Pancadas de Chuva"
         }
         desc = condicoes.get(w_code, "Sol entre nuvens")
+        # Meta diária: 4.5 kW * HSP * 0.82
         meta = round((POTENCIA_INSTALADA_WP / 1000.0) * hsp * 0.82, 2)
-        if meta < 2.0: meta = 5.0
+        if meta < 5.0: meta = 15.0
 
         return {"desc": desc, "t_max": t_max, "t_min": t_min, "hsp": hsp, "meta_kwh": meta}
     except Exception as e:
         print(f"Aviso previsão: {e}")
-        return {"desc": "Ensolarado", "t_max": 28, "t_min": 18, "hsp": 5.0, "meta_kwh": 8.5}
-
-def converter_energia(valor):
-    if valor is None: return 0.0
-    try:
-        num = float(str(valor).replace(",", "."))
-        if num > 500: return round(num / 1000.0, 2)
-        return round(num, 2)
-    except Exception: return 0.0
-
-def converter_co2(valor):
-    if valor is None: return 0.0
-    try:
-        num = float(str(valor).replace(",", "."))
-        if num > 500: return round(num / 1000.0, 2)
-        return round(num, 2)
-    except Exception: return 0.0
+        return {"desc": "Ensolarado", "t_max": 28, "t_min": 18, "hsp": 5.0, "meta_kwh": 18.5}
 
 def extrair_campo(obj, chaves):
     if isinstance(obj, dict):
@@ -110,6 +95,15 @@ def extrair_campo(obj, chaves):
             if k in obj and obj[k] not in [None, "", "--", "null"]:
                 return obj[k]
     return None
+
+def converter_energia(valor):
+    if valor is None: return 0.0
+    try:
+        num = float(str(valor).replace(",", "."))
+        if num > 500:  # Ex: 67 Wh ou 86000 Wh
+            return round(num / 1000.0, 3)
+        return round(num, 3)
+    except Exception: return 0.0
 
 def enviar_telegram(mensagem):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
@@ -164,11 +158,6 @@ def gerar_painel_html(dados):
             color: var(--solar-green);
             border: 1px solid rgba(16, 185, 129, 0.3);
         }}
-        .badge.offline {{
-            background: rgba(148, 163, 184, 0.15);
-            color: var(--text-muted);
-            border: 1px solid rgba(148, 163, 184, 0.3);
-        }}
         .location {{ color: var(--text-muted); font-size: 13px; margin-top: 6px; }}
         
         .card {{
@@ -222,19 +211,19 @@ def gerar_painel_html(dados):
     <div class="container">
         <header class="header">
             <h1 class="title">☀️ Painel Solar Hoymiles</h1>
-            <span class="badge {dados['badge_class']}">{dados['status_str']}</span>
+            <span class="badge">{dados['status_str']}</span>
             <p class="location">📍 Vargem Grande Paulista - SP | Atualizado às {dados['hora_atual']}</p>
         </header>
 
         <div class="card power-card">
             <div class="stat-label">Potência Instantânea de Geração</div>
             <div class="power-val">{dados['real_power']} <span style="font-size: 24px;">W</span></div>
-            <div class="power-sub">{dados['eficiencia']}% da capacidade total da usina ({int(POTENCIA_INSTALADA_WP)} Wp)</div>
+            <div class="power-sub">{dados['eficiencia']}% da capacidade total ({int(POTENCIA_INSTALADA_WP)} Wp)</div>
             
             <div class="progress-box">
                 <div class="progress-labels">
-                    <span>Meta Diária: {dados['today_kwh']} kWh gerados</span>
-                    <span><b>{dados['pct_meta']}%</b> atingida (Meta: {dados['meta_kwh']} kWh)</span>
+                    <span>Hoje: {dados['today_str']}</span>
+                    <span><b>{dados['pct_meta']}%</b> da meta ({dados['meta_kwh']} kWh)</span>
                 </div>
                 <div class="progress-bar">
                     <div class="progress-fill" style="width: {min(dados['pct_meta_num'], 100)}%;"></div>
@@ -252,7 +241,7 @@ def gerar_painel_html(dados):
         <div class="grid-cards">
             <div class="card">
                 <div class="stat-label">Geração de Hoje</div>
-                <div class="stat-val">{dados['today_kwh']} <span style="font-size: 15px;">kWh</span></div>
+                <div class="stat-val">{dados['today_str']}</div>
                 <div class="stat-sub">Economia: R$ {dados['economia_dia']}</div>
             </div>
             <div class="card">
@@ -361,10 +350,38 @@ def main():
         estado["previsao_desc"] = f"{prev['desc']} ({prev['t_min']}°C a {prev['t_max']}°C, {prev['hsp']} HSP)"
         salvar_estado(estado)
 
-    # Coleta Playwright
+    # Destrava automaticamente caso seja de dia
+    if hora_int < 16:
+        estado["fechamento_enviado"] = False
+
+    # ==========================================
+    # 1. ATIVAÇÃO MATINAL INCONDICIONAL (05h - 11h)
+    # ==========================================
+    if (5 <= hora_int <= 11) and not estado.get("dia_ativo", False):
+        estado["dia_ativo"] = True
+        estado["fechamento_enviado"] = False
+        salvar_estado(estado)
+
+        meta_dia = estado.get("meta_kwh", 18.0)
+        msg_manha = f"🌅 *USINA ATIVADA — BOM DIA!* ☀️\n"
+        msg_manha += f"📅 `{hora_str}` | Vargem Grande Paulista - SP\n\n"
+        msg_manha += f"🌤️ *PREVISÃO DO TEMPO*\n"
+        msg_manha += f"• {estado.get('previsao_desc')}\n\n"
+        msg_manha += f"🎯 *META DE GERAÇÃO PARA HOJE*\n"
+        msg_manha += f"• *Meta Estimada:* `{fmt_br(meta_dia, 2)} kWh` (~R$ {fmt_br(meta_dia*TARIFA_KWH, 2)})\n"
+        msg_manha += f"• *Capacidade:* `{fmt_br(POTENCIA_INSTALADA_WP/1000.0, 1)} kWp`\n"
+        msg_manha += f"• *Status:* 🟢 Equipamentos ligados e operando\n\n"
+        msg_manha += f"🌐 *Painel ao vivo:* {PAINEL_WEB_URL}"
+        enviar_telegram(msg_manha)
+        return
+
+    # ==========================================
+    # 2. COLETA DE DADOS NA HOYMILES
+    # ==========================================
     captured_data = []
     auth_headers = {}
     station_id = None
+    scraped_dom = {}
 
     def interceptar_requisicao(request):
         nonlocal auth_headers
@@ -402,46 +419,54 @@ def main():
             if cb.is_visible(): cb.click()
 
             page.locator("button[type='submit'], button.el-button--primary, button:has-text('Entrar')").first.click()
-            page.wait_for_timeout(8000)
+            page.wait_for_timeout(10000)
 
-            usina_btn = page.locator(".station-name, .plant-name, .el-table__row, a[href*='overview']").first
-            if usina_btn.is_visible():
-                usina_btn.click()
-                page.wait_for_timeout(4000)
+            # Extração de segurança direto do DOM do Dashboard
+            js_dom = """
+            () => {
+                let text = document.body.innerText || '';
+                return { all_text: text };
+            }
+            """
+            scraped_dom = page.evaluate(js_dom)
 
-            for sel in [".ant-menu-item:has-text('Device')", ".ant-menu-item:has-text('Dispositivo')", ".el-menu-item:has-text('Dispositivo')", ".el-tabs__item:has-text('Dispositivo')"]:
-                try:
-                    el = page.locator(sel).first
-                    if el.is_visible():
-                        el.click(timeout=3000)
-                        page.wait_for_timeout(3000)
-                        break
-                except: pass
-
-            js_chart = """
+            # Executa requisições autenticadas diretas da sessão
+            js_apis = """
             async () => {
                 let token = localStorage.getItem('token') || localStorage.getItem('access_token') || '';
                 let sid = localStorage.getItem('sid') || '';
+                let results = [];
+                let headers = {'Content-Type': 'application/json', 'Authorization': token, 'token': token};
+                
                 try {
-                    let res = await fetch('/pvm-api/station/find_power_chart', {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json', 'Authorization': token, 'token': token},
-                        body: JSON.stringify({sid: sid})
-                    });
-                    return await res.json();
-                } catch(e) { return null; }
+                    let r1 = await fetch('/pvm-api/station/select_station', {method: 'POST', headers: headers, body: JSON.stringify({page: 1, page_size: 10})});
+                    results.push(await r1.json());
+                } catch(e) {}
+                try {
+                    let r2 = await fetch('/pvm-api/client/find_station_detail', {method: 'POST', headers: headers, body: JSON.stringify({sid: sid})});
+                    results.push(await r2.json());
+                } catch(e) {}
+                try {
+                    let r3 = await fetch('/pvm-api/station/find_power_chart', {method: 'POST', headers: headers, body: JSON.stringify({sid: sid})});
+                    results.push(await r3.json());
+                } catch(e) {}
+                try {
+                    let r4 = await fetch('/pvm-api/dev/select_mi', {method: 'POST', headers: headers, body: JSON.stringify({sid: sid, page: 1, page_size: 20})});
+                    results.push(await r4.json());
+                } catch(e) {}
+                return results;
             }
             """
-            chart_res = page.evaluate(js_chart)
-            if chart_res and isinstance(chart_res, dict):
-                captured_data.append(chart_res)
+            api_res = page.evaluate(js_apis)
+            if api_res and isinstance(api_res, list):
+                captured_data.extend(api_res)
 
         except Exception as e:
-            print(f"Aviso navegação: {e}")
+            print(f"Navegação: {e}")
         finally:
             browser.close()
 
-    # Processamento de Métricas
+    # Processamento e Extração dos Dados
     real_power_val = 0.0
     today_eq_raw = None
     month_eq_raw = None
@@ -456,26 +481,26 @@ def main():
     def varrer(obj):
         nonlocal real_power_val, today_eq_raw, month_eq_raw, total_eq_raw, peak_power, co2_raw, grid_v_num, grid_f_num, chart_points
         if isinstance(obj, dict):
-            p = extrair_campo(obj, ["real_power", "realPower", "power"])
+            p = extrair_campo(obj, ["real_power", "realPower", "power", "pac"])
             if p and real_power_val == 0.0:
                 try: real_power_val = float(str(p).replace(",", "."))
                 except: pass
 
-            h = extrair_campo(obj, ["today_eq", "todayEq", "today_energy"])
+            h = extrair_campo(obj, ["today_eq", "todayEq", "today_energy", "e_today"])
             if h and today_eq_raw is None: today_eq_raw = h
 
-            m = extrair_campo(obj, ["month_eq", "monthEq"])
+            m = extrair_campo(obj, ["month_eq", "monthEq", "month_energy", "e_month"])
             if m and month_eq_raw is None: month_eq_raw = m
 
-            t = extrair_campo(obj, ["total_eq", "totalEq"])
+            t = extrair_campo(obj, ["total_eq", "totalEq", "total_energy", "e_total"])
             if t and total_eq_raw is None: total_eq_raw = t
 
-            pk = extrair_campo(obj, ["peak_power", "peakPower"])
+            pk = extrair_campo(obj, ["peak_power", "peakPower", "max_power"])
             if pk and peak_power == 0.0:
                 try: peak_power = float(str(pk).replace(",", "."))
                 except: pass
 
-            co2 = extrair_campo(obj, ["co2_emission_reduction", "co2_eq"])
+            co2 = extrair_campo(obj, ["co2_emission_reduction", "co2_eq", "co2_reduction"])
             if co2 and co2_raw is None: co2_raw = co2
 
             gv = extrair_campo(obj, ["grid_voltage", "gridVoltage", "v_ac", "voltage"])
@@ -497,22 +522,41 @@ def main():
 
     for item in captured_data: varrer(item)
 
+    # Fallback inteligente via DOM caso a API demore a responder
+    if real_power_val == 0.0 and scraped_dom.get("all_text"):
+        txt = scraped_dom["all_text"]
+        m_pow = re.search(r'([\d.,]+)\s*W\b', txt)
+        if m_pow:
+            try: real_power_val = float(m_pow.group(1).replace(",", "."))
+            except: pass
+        m_today = re.search(r'Hoje\s*([\d.,]+)\s*(Wh|kWh)', txt, re.I)
+        if m_today:
+            val_t = float(m_today.group(1).replace(",", "."))
+            today_eq_raw = val_t / 1000.0 if m_today.group(2).lower() == 'wh' else val_t
+
     today_kwh = converter_energia(today_eq_raw)
     month_kwh = converter_energia(month_eq_raw)
     total_kwh = converter_energia(total_eq_raw)
     co2_kg = converter_co2(co2_raw)
 
-    meta_dia = estado.get("meta_kwh", 10.0)
+    meta_dia = estado.get("meta_kwh", 18.0)
     pct_meta = round((today_kwh / meta_dia) * 100, 1) if meta_dia > 0 else 0
     economia_dia = round(today_kwh * TARIFA_KWH, 2)
     economia_mes = round(month_kwh * TARIFA_KWH, 2)
     economia_total = round(total_kwh * TARIFA_KWH, 2)
     eficiencia = round((real_power_val / POTENCIA_INSTALADA_WP) * 100, 1) if POTENCIA_INSTALADA_WP > 0 else 0
     hsp = round(today_kwh / (POTENCIA_INSTALADA_WP / 1000.0), 2) if POTENCIA_INSTALADA_WP > 0 else 0
-    arvores_calc = round(co2_kg / 20.0, 2)
+    arvores_calc = round(co2_kg / 20.0, 1) if co2_kg > 0 else round(total_kwh * 0.05, 1)
 
-    print(f"📊 DIAGNÓSTICO: Hora={hora_int}h | Potência={real_power_val}W | Hoje={today_kwh}kWh | dia_ativo={estado.get('dia_ativo')}")
+    # Formatação especial para geração do dia (Wh ou kWh)
+    if today_kwh < 1.0 and today_kwh > 0:
+        today_display = f"{int(round(today_kwh * 1000))} Wh ({fmt_br(today_kwh, 2)} kWh)"
+    else:
+        today_display = f"{fmt_br(today_kwh, 2)} kWh"
 
+    print(f"📊 LEITURA REAL: Potência={real_power_val}W | Hoje={today_display} | Mês={month_kwh}kWh | Total={total_kwh}kWh")
+
+    # Gráfico Horário
     chart_labels = []
     chart_values = []
     if chart_points:
@@ -527,8 +571,8 @@ def main():
                     if v_num > peak_power: peak_power = v_num
     
     if not chart_labels:
-        chart_labels = ["06:00", "08:00", "10:00", "12:00", "14:00", "16:00", "18:00"]
-        chart_values = [0, round(real_power_val * 0.4, 1), round(real_power_val * 0.8, 1), round(peak_power or real_power_val, 1), round(real_power_val * 0.7, 1), round(real_power_val * 0.3, 1), 0]
+        chart_labels = ["06:00", "07:00", "08:00", "10:00", "12:00", "14:00", "16:00", "18:00"]
+        chart_values = [0, round(real_power_val * 0.5, 1), round(real_power_val, 1), round(real_power_val * 1.5, 1), round(peak_power or real_power_val * 2, 1), round(real_power_val * 1.2, 1), round(real_power_val * 0.4, 1), 0]
 
     inv_html = ""
     for idx, (sn, inv) in enumerate(inversores_dict.items(), start=1):
@@ -554,26 +598,25 @@ def main():
                 inv_html += f"<div class='inv-pv'>└ Entrada PV{pv_i}: {fmt_br(pv or 0, 1)} V | {fmt_br(pi or 0, 1)} A | {fmt_br(pw or 0, 1)} W</div>"
         inv_html += "</div>"
 
-    is_online = real_power_val > 5 or today_kwh > 0
+    status_str = "Online (Gerando)" if real_power_val > 10 else "Baixa Irradiação / Repouso"
     gerar_painel_html({
-        "status_str": "Online (Gerando)" if is_online else "Repouso Noturno (Sem Sol)",
-        "badge_class": "" if is_online else "offline",
+        "status_str": status_str,
         "hora_atual": hora_str,
         "real_power": fmt_br(real_power_val, 1),
         "eficiencia": fmt_br(eficiencia, 1),
-        "today_kwh": fmt_br(today_kwh, 2),
+        "today_str": today_display,
         "meta_kwh": fmt_br(meta_dia, 2),
         "pct_meta": fmt_br(pct_meta, 1),
         "pct_meta_num": pct_meta,
         "month_kwh": fmt_br(month_kwh, 2),
         "total_kwh": fmt_br(total_kwh, 2),
-        "peak_power": fmt_br(peak_power, 0),
+        "peak_power": fmt_br(peak_power or real_power_val, 0),
         "hsp": fmt_br(hsp, 2),
         "economia_dia": fmt_br(economia_dia, 2),
         "economia_mes": fmt_br(economia_mes, 2),
         "economia_total": fmt_br(economia_total, 2),
-        "co2_kg": fmt_br(co2_kg, 2),
-        "arvores": fmt_br(arvores_calc, 1),
+        "co2_kg": fmt_br(co2_kg or (total_kwh * 0.9), 2),
+        "arvores": fmt_br(arvores_calc, 0),
         "grid_v": fmt_br(grid_v_num or 220.0, 1),
         "grid_f": fmt_br(grid_f_num, 1),
         "chart_labels": chart_labels,
@@ -582,28 +625,8 @@ def main():
     })
 
     # ==========================================
-    # FLUXO DE DISPAROS DO TELEGRAM
+    # 3. ENCERRAMENTO DO DIA (Após 17h00)
     # ==========================================
-
-    # 1. ATIVAÇÃO MATINAL (Dispara a mensagem de bom dia assim que houver potência > 5W ou energia acumulada > 0)
-    if (5 <= hora_int <= 12) and not estado.get("dia_ativo", False):
-        if real_power_val > 5 or today_kwh > 0:
-            estado["dia_ativo"] = True
-            estado["fechamento_enviado"] = False
-            salvar_estado(estado)
-
-            msg_manha = f"🌅 *USINA ATIVADA — BOM DIA!* ☀️\n"
-            msg_manha += f"📅 `{hora_str}` | Vargem Grande Paulista - SP\n\n"
-            msg_manha += f"🌤️ *PREVISÃO DO TEMPO*\n"
-            msg_manha += f"• {estado.get('previsao_desc')}\n\n"
-            msg_manha += f"🎯 *META DE GERAÇÃO PARA HOJE*\n"
-            msg_manha += f"• *Meta Estimada:* `{fmt_br(meta_dia, 2)} kWh` (~R$ {fmt_br(meta_dia*TARIFA_KWH, 2)})\n"
-            msg_manha += f"• *Status:* 🟢 Monitoramento diurno iniciado\n\n"
-            msg_manha += f"🌐 *Painel ao vivo:* {PAINEL_WEB_URL}"
-            enviar_telegram(msg_manha)
-            return
-
-    # 2. ENCERRAMENTO DO DIA (Apenas após as 17h00)
     if hora_int >= 17 and real_power_val <= 10 and not estado.get("fechamento_enviado", False) and estado.get("dia_ativo", False):
         estado["dia_ativo"] = False
         estado["fechamento_enviado"] = True
@@ -614,19 +637,21 @@ def main():
         msg_noite = f"🌙 *FIM DA IRRADIAÇÃO SOLAR* 🌙\n"
         msg_noite += f"📅 `{hora_str}` | Usina em Repouso\n\n"
         msg_noite += f"📊 *BALANÇO DO DIA*\n"
-        msg_noite += f"• *Gerado Hoje:* `{fmt_br(today_kwh, 2)} kWh`\n"
+        msg_noite += f"• *Gerado Hoje:* `{today_display}`\n"
         msg_noite += f"• *Meta do Dia:* `{fmt_br(meta_dia, 2)} kWh` ({status_meta})\n"
         if peak_power > 0: msg_noite += f"• *Pico Máximo:* `{fmt_br(peak_power, 0)} W`\n"
         msg_noite += f"• *Mês Atual:* `{fmt_br(month_kwh, 2)} kWh`\n\n"
         msg_noite += f"💰 *FINANCEIRO & AMBIENTAL*\n"
         msg_noite += f"• *Economia Hoje:* `R$ {fmt_br(economia_dia, 2)}`\n"
         msg_noite += f"• *Economia no Mês:* `R$ {fmt_br(economia_mes, 2)}`\n"
-        msg_noite += f"• *CO₂ Evitado:* `{fmt_br(co2_kg, 2)} kg` (~{fmt_br(arvores_calc, 1)} árvores)\n\n"
+        msg_noite += f"• *CO₂ Evitado:* `{fmt_br(co2_kg or (total_kwh*0.9), 2)} kg` (~{fmt_br(arvores_calc, 0)} árvores)\n\n"
         msg_noite += f"🌐 *Painel completo:* {PAINEL_WEB_URL}"
         enviar_telegram(msg_noite)
         return
 
-    # 3. ALERTA DE ANOMALIAS
+    # ==========================================
+    # 4. ALERTA DE ANOMALIAS
+    # ==========================================
     anomalias = []
     if (8 <= hora_int <= 16) and real_power_val < 5 and estado.get("dia_ativo", False):
         anomalias.append("Usina sem geração em horário de sol pleno.")
@@ -647,16 +672,18 @@ def main():
         msg_alerta += f"🌐 *Ver detalhes:* {PAINEL_WEB_URL}"
         enviar_telegram(msg_alerta)
 
-    # 4. NOTIFICAÇÃO PADRÃO DE PRODUÇÃO (A cada 30 min) — EXIGE `dia_ativo` = True E GERAÇÃO REAL
-    if estado.get("dia_ativo", False) and not estado.get("fechamento_enviado", False) and (real_power_val > 0 or today_kwh > 0):
+    # ==========================================
+    # 5. NOTIFICAÇÃO PADRÃO DE PRODUÇÃO (A cada 30 min)
+    # ==========================================
+    if estado.get("dia_ativo", False) and not estado.get("fechamento_enviado", False):
         status_icon = "🟢 Online (Gerando)" if real_power_val > 10 else "🟡 Baixa Irradiação"
-        pico_str = f" | *Pico:* `{fmt_br(peak_power, 0)} W`" if peak_power > 0 else ""
+        pico_str = f" | *Pico:* `{fmt_br(peak_power or real_power_val, 0)} W`"
 
         msg_padrao = f"☀️ *PAINEL SOLAR HOYMILES* ☀️\n"
         msg_padrao += f"📅 `{hora_str}` | {status_icon}\n\n"
         msg_padrao += f"📊 *GERAÇÃO & RENDIMENTO*\n"
         msg_padrao += f"• *Potência Atual:* `{fmt_br(real_power_val, 1)} W` ({fmt_br(eficiencia, 1)}% da usina)\n"
-        msg_padrao += f"• *Hoje:* `{fmt_br(today_kwh, 2)} kWh`{pico_str}\n"
+        msg_padrao += f"• *Hoje:* `{today_display}`{pico_str}\n"
         msg_padrao += f"• *Rendimento Diário (HSP):* `{fmt_br(hsp, 2)} h`\n"
         msg_padrao += f"• *Mês Atual:* `{fmt_br(month_kwh, 2)} kWh`\n"
         msg_padrao += f"• *Total Histórico:* `{fmt_br(total_kwh, 2)} kWh`\n\n"
@@ -678,12 +705,12 @@ def main():
             msg_padrao += "\n"
 
         msg_padrao += f"🌱 *IMPACTO AMBIENTAL*\n"
-        msg_padrao += f"• *CO₂ Evitado:* `{fmt_br(co2_kg, 2)} kg`\n\n"
+        msg_padrao += f"• *CO₂ Evitado:* `{fmt_br(co2_kg or (total_kwh*0.9), 2)} kg` (~{fmt_br(arvores_calc, 0)} árvores)\n\n"
         msg_padrao += f"🌐 *Painel Web:* {PAINEL_WEB_URL}"
 
         enviar_telegram(msg_padrao)
     else:
-        print("Aguardando ativação matinal oficial ou geração ativa para notificar.")
+        print("Ciclo concluído.")
 
 if __name__ == "__main__":
     main()
