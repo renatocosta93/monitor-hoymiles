@@ -361,10 +361,6 @@ def main():
         estado["previsao_desc"] = f"{prev['desc']} ({prev['t_min']}°C a {prev['t_max']}°C, {prev['hsp']} HSP)"
         salvar_estado(estado)
 
-    # 2. Desbloqueio de segurança diurno (garante que antes das 16h o fechamento nunca fique travado)
-    if hora_int < 16:
-        estado["fechamento_enviado"] = False
-
     # Coleta Playwright
     captured_data = []
     auth_headers = {}
@@ -515,7 +511,7 @@ def main():
     hsp = round(today_kwh / (POTENCIA_INSTALADA_WP / 1000.0), 2) if POTENCIA_INSTALADA_WP > 0 else 0
     arvores_calc = round(co2_kg / 20.0, 2)
 
-    print(f"📊 DIAGNÓSTICO: Hora={hora_int}h | Potência={real_power_val}W | Hoje={today_kwh}kWh | dia_ativo={estado.get('dia_ativo')} | fechamento={estado.get('fechamento_enviado')}")
+    print(f"📊 DIAGNÓSTICO: Hora={hora_int}h | Potência={real_power_val}W | Hoje={today_kwh}kWh | dia_ativo={estado.get('dia_ativo')}")
 
     chart_labels = []
     chart_values = []
@@ -589,9 +585,9 @@ def main():
     # FLUXO DE DISPAROS DO TELEGRAM
     # ==========================================
 
-    # 1. ATIVAÇÃO MATINAL (Qualquer indício de geração pela manhã ativa o dia)
-    if (5 <= hora_int <= 13) and not estado.get("dia_ativo", False):
-        if real_power_val > 0 or today_kwh > 0 or peak_power > 0:
+    # 1. ATIVAÇÃO MATINAL (Dispara a mensagem de bom dia assim que houver potência > 5W ou energia acumulada > 0)
+    if (5 <= hora_int <= 12) and not estado.get("dia_ativo", False):
+        if real_power_val > 5 or today_kwh > 0:
             estado["dia_ativo"] = True
             estado["fechamento_enviado"] = False
             salvar_estado(estado)
@@ -607,8 +603,8 @@ def main():
             enviar_telegram(msg_manha)
             return
 
-    # 2. ENCERRAMENTO DO DIA (Somente a partir das 17h00 quando o sol se põe)
-    if hora_int >= 17 and real_power_val <= 10 and not estado.get("fechamento_enviado", False) and (today_kwh > 0 or estado.get("dia_ativo", False)):
+    # 2. ENCERRAMENTO DO DIA (Apenas após as 17h00)
+    if hora_int >= 17 and real_power_val <= 10 and not estado.get("fechamento_enviado", False) and estado.get("dia_ativo", False):
         estado["dia_ativo"] = False
         estado["fechamento_enviado"] = True
         salvar_estado(estado)
@@ -651,8 +647,8 @@ def main():
         msg_alerta += f"🌐 *Ver detalhes:* {PAINEL_WEB_URL}"
         enviar_telegram(msg_alerta)
 
-    # 4. NOTIFICAÇÃO PADRÃO DE PRODUÇÃO (A cada 30 min)
-    if (estado.get("dia_ativo", False) or hora_int < 17) and not estado.get("fechamento_enviado", False):
+    # 4. NOTIFICAÇÃO PADRÃO DE PRODUÇÃO (A cada 30 min) — EXIGE `dia_ativo` = True E GERAÇÃO REAL
+    if estado.get("dia_ativo", False) and not estado.get("fechamento_enviado", False) and (real_power_val > 0 or today_kwh > 0):
         status_icon = "🟢 Online (Gerando)" if real_power_val > 10 else "🟡 Baixa Irradiação"
         pico_str = f" | *Pico:* `{fmt_br(peak_power, 0)} W`" if peak_power > 0 else ""
 
@@ -666,8 +662,8 @@ def main():
         msg_padrao += f"• *Total Histórico:* `{fmt_br(total_kwh, 2)} kWh`\n\n"
         msg_padrao += f"💰 *ECONOMIA ESTIMADA*\n"
         msg_padrao += f"• *Hoje:* `R$ {fmt_br(economia_dia, 2)}`\n"
-        msg_padrao += f"• *Mês Atual:* `R$ {economia_mes:.2f}`\n"
-        msg_padrao += f"• *Total Acumulado:* `R$ {economia_total:.2f}`\n\n"
+        msg_padrao += f"• *Mês Atual:* `R$ {fmt_br(economia_mes, 2)}`\n"
+        msg_padrao += f"• *Total Acumulado:* `R$ {fmt_br(economia_total, 2)}`\n\n"
 
         if grid_v_num > 0:
             msg_padrao += f"⚡ *REDE ELÉTRICA (CA)*\n"
@@ -687,7 +683,7 @@ def main():
 
         enviar_telegram(msg_padrao)
     else:
-        print("Aguardando ativação matinal ou sistema em repouso.")
+        print("Aguardando ativação matinal oficial ou geração ativa para notificar.")
 
 if __name__ == "__main__":
     main()
