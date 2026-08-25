@@ -14,10 +14,10 @@ HOYMILES_PASS = "mcosta295@"
 TELEGRAM_BOT_TOKEN = "8946039720:AAF7U0QokemhGv_5iTzVj9L6IGB1C1kOvhE"
 TELEGRAM_CHAT_ID = "1020154663"
 
-# Link do Painel Web no GitHub Pages:
+# Link do Painel Web no GitHub Pages (que passará a funcionar):
 PAINEL_WEB_URL = "https://renatocosta93.github.io/monitor-hoymiles/"
 
-POTENCIA_INSTALADA_WP = 4500.0  # Capacidade de 4.5 kW conforme App S-Miles
+POTENCIA_INSTALADA_WP = 4500.0  # Capacidade de 4.5 kW conforme seu aplicativo S-Miles
 TARIFA_KWH = 0.88               # Tarifa média de energia (R$/kWh)
 
 # Localização: Vargem Grande Paulista - SP
@@ -596,11 +596,14 @@ def main():
         chart_values = [0, round(real_power_val * 0.5, 1), round(real_power_val, 1), round(real_power_val * 1.5, 1), round(peak_power or real_power_val * 2, 1), round(real_power_val * 1.2, 1), round(real_power_val * 0.4, 1), 0]
 
     inv_html = ""
+    inversores_msg = []
     for idx, (sn, inv) in enumerate(inversores_dict.items(), start=1):
-        p_inv = inv.get("real_power") or inv.get("power") or "--"
-        t_inv = inv.get("temperature") or inv.get("temp") or "--"
-        v_inv = inv.get("grid_voltage") or inv.get("gridVoltage") or (f"{grid_v_num:.1f}" if grid_v_num > 0 else "--")
+        p_inv = extrair_campo(inv, ["real_power", "power"]) or "--"
+        t_inv = extrair_campo(inv, ["temperature", "temp"]) or "--"
+        v_inv = extrair_campo(inv, ["grid_voltage", "gridVoltage"]) or (f"{grid_v_num:.1f}" if grid_v_num > 0 else "--")
         
+        inversores_msg.append(f"• *Inv {idx} ({sn})*: `{p_inv} W` | `{t_inv}°C`")
+
         inv_html += f"""
         <div class="inverter-item">
             <div class="inv-head">
@@ -616,7 +619,9 @@ def main():
             pv = inv.get(f"pv{pv_i}_vol") or inv.get(f"u{pv_i}")
             pi = inv.get(f"pv{pv_i}_cur") or inv.get(f"i{pv_i}")
             if pw is not None or pv is not None:
-                inv_html += f"<div class='inv-pv'>└ Entrada PV{pv_i}: {fmt_br(pv or 0, 1)} V | {fmt_br(pi or 0, 1)} A | {fmt_br(pw or 0, 1)} W</div>"
+                pw_f = fmt_br(pw or 0, 1) if pw is not None else "--"
+                inversores_msg.append(f"  └ *Placa {pv_i}*: `{pw_f} W`")
+                inv_html += f"<div class='inv-pv'>└ Entrada PV{pv_i}: {fmt_br(pv or 0, 1)} V | {fmt_br(pi or 0, 1)} A | {pw_f} W</div>"
         inv_html += "</div>"
 
     status_str = "Online (Gerando)" if real_power_val > 10 else "Baixa Irradiação / Repouso"
@@ -717,12 +722,10 @@ def main():
             msg_padrao += f"⚡ *REDE ELÉTRICA (CA)*\n"
             msg_padrao += f"• *Tensão:* `{fmt_br(grid_v_num, 1)} V` | *Frequência:* `{fmt_br(grid_f_num, 1)} Hz`\n\n"
 
-        if inversores_dict:
-            msg_padrao += f"🔌 *MICROINVERSORES*\n"
-            for idx, (sn, inv) in enumerate(inversores_dict.items(), start=1):
-                temp = inv.get("temperature") or inv.get("temp") or "--"
-                pot = inv.get("real_power") or inv.get("power") or "--"
-                msg_padrao += f"• *Inv {idx} ({sn})*: `{pot} W` | `{temp}°C`\n"
+        if inversores_msg:
+            msg_padrao += f"🔌 *TELEMETRIA DE MICROINVERSORES*\n"
+            for m in inversores_msg:
+                msg_padrao += m + "\n"
             msg_padrao += "\n"
 
         msg_padrao += f"🌱 *IMPACTO AMBIENTAL*\n"
