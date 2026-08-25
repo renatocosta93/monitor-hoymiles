@@ -1,6 +1,6 @@
 {
-  "dia_ativo": true,
-  "fechamento_enviado": false,
+  "dia_ativo": false,
+  "fechamento_enviado": true,
   "data_atual": "2026-08-25",
   "meta_kwh": 3.77,
   "previsao_desc": "Nublado (12.1°C a 19.4°C, 2.3 HSP)",
