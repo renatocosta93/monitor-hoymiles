@@ -14,7 +14,7 @@
             --text-muted: #94a3b8;
             --solar-amber: #f59e0b;
             --solar-green: #10b981;
-            --solar-blue: #38df8;
+            --solar-blue: #38bdf8;
             --solar-red: #ef4444;
             --solar-purple: #a855f7;
         }
@@ -23,131 +23,199 @@
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             background-color: var(--bg);
             color: var(--text-main);
-            padding: 20px 12px;
+            padding: 16px 10px;
         }
         .container { max-width: 860px; margin: 0 auto; }
-        .header { text-align: center; margin-bottom: 24px; }
-        .title { font-size: 26px; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 8px; }
-        .badge {
-            display: inline-block;
-            margin-top: 8px;
-            padding: 4px 14px;
+        .header { text-align: center; margin-bottom: 20px; }
+        .title { font-size: 24px; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 8px; }
+        
+        .status-container {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 10px;
+            padding: 6px 18px;
+            background: #1e293b;
             border-radius: 999px;
-            font-size: 13px;
-            font-weight: 700;
-            background: rgba(16, 185, 129, 0.15);
-            color: var(--solar-green);
-            border: 1px solid rgba(16, 185, 129, 0.3);
+            border: 1px solid var(--card-border);
         }
+        .tower-icon { position: relative; display: flex; align-items: center; justify-content: center; }
+        .tower-icon.online svg { filter: drop-shadow(0 0 6px rgba(16, 185, 129, 0.6)); }
+        .pulse-ring {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            border: 2px solid #10b981;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(0.8); opacity: 0.8; }
+            100% { transform: scale(1.6); opacity: 0; }
+        }
+        .status-text { font-size: 14px; font-weight: 700; color: #10b981; }
         .location { color: var(--text-muted); font-size: 13px; margin-top: 6px; }
         
         .card {
             background: var(--card-bg);
             border: 1px solid var(--card-border);
-            border-radius: 18px;
-            padding: 20px;
-            margin-bottom: 16px;
+            border-radius: 16px;
+            padding: 16px;
+            margin-bottom: 14px;
             box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
         }
-        .power-card {
+
+        /* Card Compacto de Potência Instantânea */
+        .power-card-compact {
             text-align: center;
             background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
             border: 1px solid rgba(245, 158, 11, 0.3);
+            padding: 14px 12px;
         }
         .power-val {
-            font-size: 48px;
+            font-size: 38px;
             font-weight: 900;
             color: var(--solar-amber);
             line-height: 1.1;
-            margin: 10px 0;
+            margin: 4px 0;
+            font-feature-settings: "tnum";
+            font-variant-numeric: tabular-nums;
         }
-        .power-sub { color: var(--text-muted); font-size: 14px; }
-        
-        .progress-box { margin-top: 18px; }
-        .progress-labels { display: flex; justify-content: space-between; font-size: 13px; color: var(--text-muted); margin-bottom: 6px; }
-        .progress-bar { background: #334155; height: 10px; border-radius: 6px; overflow: hidden; }
-        .progress-fill { background: var(--solar-amber); height: 100%; border-radius: 6px; }
+        .power-sub { color: var(--text-muted); font-size: 13px; }
 
-        .grid-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px; }
-        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
-        
+        /* Seção Faróis de Meta Lado a Lado */
+        .farois-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+        .farol-card {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: #1e293b;
+            border: 1px solid var(--card-border);
+            border-radius: 14px;
+            padding: 12px 14px;
+        }
+        .farol-luz {
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            box-shadow: 0 0 12px currentColor;
+        }
+        .farol-info { display: flex; flex-direction: column; }
+        .farol-title { font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 700; }
+        .farol-kwh { font-size: 16px; font-weight: 800; color: var(--text-main); margin: 2px 0; }
+        .farol-pct { font-size: 12px; font-weight: 700; }
+
         .record-card {
             background: linear-gradient(135deg, #1e293b 0%, #1e1b4b 100%);
             border: 1px solid rgba(168, 85, 247, 0.4);
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 16px 20px;
+            padding: 14px 18px;
         }
-        .record-info { display: flex; flex-direction: column; gap: 4px; }
         .record-badge {
-            font-size: 28px;
+            font-size: 24px;
             font-weight: 900;
             color: #c084fc;
             text-shadow: 0 0 12px rgba(192, 132, 252, 0.4);
         }
-        
-        .stat-label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; font-weight: 700; }
-        .stat-val { font-size: 22px; font-weight: 800; margin: 4px 0; color: var(--text-main); }
-        .stat-sub { font-size: 13px; color: var(--solar-green); font-weight: 600; }
 
-        .chart-box { margin-top: 12px; height: 260px; position: relative; }
+        .grid-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+        
+        .stat-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: 700; }
+        .stat-val { font-size: 20px; font-weight: 800; margin: 3px 0; color: var(--text-main); }
+        .stat-sub { font-size: 12px; color: var(--solar-green); font-weight: 600; }
+
+        .chart-box { margin-top: 10px; height: 240px; position: relative; }
         
         .inverter-item {
             background: #0f172a;
             border: 1px solid #334155;
             border-radius: 12px;
-            padding: 14px;
+            padding: 12px;
             margin-top: 10px;
         }
-        .inv-head { display: flex; justify-content: space-between; font-weight: 700; font-size: 14px; margin-bottom: 8px; }
-        .inv-pv { font-size: 12px; color: var(--text-muted); margin-left: 12px; font-family: monospace; }
+        .inv-head { display: flex; justify-content: space-between; font-weight: 700; font-size: 13px; margin-bottom: 6px; }
+        .inv-pv { font-size: 12px; color: var(--text-muted); margin-left: 10px; font-family: monospace; }
     </style>
 </head>
 <body>
     <div class="container">
         <header class="header">
-            <h1 class="title">☀️ Usina Solar Mendes</h1>
-            <span class="badge">Online (Gerando)</span>
-            <p class="location">📍 Vargem Grande Paulista - SP | Atualizado às 26/08/2026 - 13:10</p>
+            <h1 class="title">☀️ Painel Solar Hoymiles</h1>
+            <div class="status-container">
+                
+        <div class="tower-icon online" title="Usina Operando em Plena Geração">
+            <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" width="38" height="38">
+                <path d="M32 4L18 60M32 4L46 60M23 24H41M19 40H45M26 12L38 12M12 60H52" stroke="#10b981" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+                <circle cx="32" cy="4" r="3" fill="#38bdf8"/>
+                <path d="M12 36L4 42M52 36L60 42M14 20L6 24M50 20L58 24" stroke="#f59e0b" stroke-width="2.5" stroke-linecap="round"/>
+            </svg>
+            <span class="pulse-ring"></span>
+        </div>
+        
+                <span class="status-text">Online (Gerando)</span>
+            </div>
+            <p class="location">📍 Vargem Grande Paulista - SP | Atualizado às 26/08/2026 - 13:16</p>
         </header>
 
-        <div class="card power-card">
+        <!-- Card Compacto de Potência -->
+        <div class="card power-card-compact">
             <div class="stat-label">Potência Instantânea de Geração</div>
-            <div class="power-val">1.397,5 <span style="font-size: 24px;">W</span></div>
-            <div class="power-sub">31,1% da capacidade total (4500 Wp)</div>
-            
-            <div class="progress-box">
-                <div class="progress-labels">
-                    <span>Hoje: 10,88 kWh</span>
-                    <span><b>81,9%</b> da meta (13,28 kWh)</span>
+            <div class="power-val">1630.40 <span style="font-size: 20px;">W</span></div>
+            <div class="power-sub">36,2% da capacidade instalada (4500 Wp)</div>
+        </div>
+
+        <!-- Faróis de Meta (Diário e Mensal) -->
+        <div class="farois-grid">
+            <div class="farol-card">
+                <div class="farol-luz" style="background-color: #f59e0b; color: #f59e0b;"></div>
+                <div class="farol-info">
+                    <span class="farol-title">Farol Meta Diária</span>
+                    <span class="farol-kwh">11,01 / 13,28 kWh</span>
+                    <span class="farol-pct" style="color: #f59e0b;">82,9% atingida</span>
                 </div>
-                <div class="progress-bar">
-                    <div class="progress-fill" style="width: 81.9%;"></div>
+            </div>
+            <div class="farol-card">
+                <div class="farol-luz" style="background-color: #ef4444; color: #ef4444;"></div>
+                <div class="farol-info">
+                    <span class="farol-title">Farol Meta Mensal</span>
+                    <span class="farol-kwh">91,41 / 411,7 kWh</span>
+                    <span class="farol-pct" style="color: #ef4444;">22,2% atingida</span>
                 </div>
             </div>
         </div>
 
+        <!-- Card do Recorde do Mês -->
         <div class="card record-card">
-            <div class="record-info">
-                <div class="stat-label" style="color: #c084fc;">🏆 Recorde do Mês (Agosto/2026)</div>
-                <div style="font-size: 14px; color: var(--text-main);">Dia 26/08</div>
-                <div style="font-size: 12px; color: var(--text-muted);">Economia no dia: <b>R$ 11,10</b></div>
+            <div>
+                <div class="stat-label" style="color: #c084fc;">🏆 Recorde de Geração (Agosto/2026)</div>
+                <div style="font-size: 14px; font-weight: 700; color: var(--text-main); margin-top: 2px;">Dia 26/08</div>
+                <div style="font-size: 12px; color: var(--text-muted);">Economia gerada: <b>R$ 9,69</b></div>
             </div>
-            <div class="record-badge">10,88 <span style="font-size: 16px;">kWh</span></div>
+            <div class="record-badge">11,01 <span style="font-size: 14px;">kWh</span></div>
         </div>
 
+        <!-- Gráfico Diário com Linha de Tendência Real -->
         <div class="card">
             <div class="stat-label">📅 Comparativo Diário com Linha de Tendência (Agosto/2026)</div>
-            <p style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Barras: geração diária | Linha: tendência média de produção</p>
+            <p style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">Produção real diária via API Hoymiles com média de tendência</p>
             <div class="chart-box">
                 <canvas id="chartDias"></canvas>
             </div>
         </div>
 
+        <!-- Gráfico de Horários Acumulados -->
         <div class="card">
             <div class="stat-label">⚡ Distribuição & Horários de Maior Produção</div>
-            <p style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Concentração de potência ao longo das horas do dia</p>
+            <p style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">Potência solar média registrada ao longo do dia</p>
             <div class="chart-box">
                 <canvas id="chartHoras"></canvas>
             </div>
@@ -156,37 +224,37 @@
         <div class="grid-cards">
             <div class="card">
                 <div class="stat-label">Geração de Hoje</div>
-                <div class="stat-val">10,88 kWh</div>
-                <div class="stat-sub">Economia: R$ 11,10</div>
+                <div class="stat-val">11,01 kWh</div>
+                <div class="stat-sub">Economia: R$ 9,69</div>
             </div>
             <div class="card">
                 <div class="stat-label">Acumulado no Mês</div>
-                <div class="stat-val">91,41 <span style="font-size: 15px;">kWh</span></div>
-                <div class="stat-sub">Economia: R$ 93,24</div>
+                <div class="stat-val">91,41 <span style="font-size: 14px;">kWh</span></div>
+                <div class="stat-sub">Economia: R$ 80,44</div>
             </div>
         </div>
 
         <div class="grid-3">
             <div class="card">
                 <div class="stat-label">Total Histórico</div>
-                <div class="stat-val" style="font-size: 18px;">91,74 <span style="font-size: 12px;">kWh</span></div>
-                <div class="stat-sub" style="font-size: 12px;">R$ 93,57</div>
+                <div class="stat-val" style="font-size: 17px;">91,74 <span style="font-size: 11px;">kWh</span></div>
+                <div class="stat-sub" style="font-size: 11px;">R$ 80,73</div>
             </div>
             <div class="card">
                 <div class="stat-label">Pico do Dia</div>
-                <div class="stat-val" style="font-size: 18px;">1.398 <span style="font-size: 12px;">W</span></div>
-                <div style="font-size: 12px; color: var(--text-muted);">2,42 HSP</div>
+                <div class="stat-val" style="font-size: 17px;">1.630 <span style="font-size: 11px;">W</span></div>
+                <div style="font-size: 11px; color: var(--text-muted);">2,45 HSP</div>
             </div>
             <div class="card">
                 <div class="stat-label">CO₂ Evitado</div>
-                <div class="stat-val" style="font-size: 18px;">91,46 <span style="font-size: 12px;">kg</span></div>
-                <div style="font-size: 12px; color: var(--solar-green);">~5 árvores</div>
+                <div class="stat-val" style="font-size: 17px;">91,46 <span style="font-size: 11px;">kg</span></div>
+                <div style="font-size: 11px; color: var(--solar-green);">~5 árvores</div>
             </div>
         </div>
 
         <div class="card">
-            <div class="stat-label" style="margin-bottom: 8px;">Telemetria da Rede Elétrica & Microinversores</div>
-            <p style="font-size: 14px; margin-bottom: 12px;">
+            <div class="stat-label" style="margin-bottom: 6px;">Telemetria da Rede Elétrica & Microinversores</div>
+            <p style="font-size: 13px; margin-bottom: 10px;">
                 Tensão da Rede: <b>220,0 V</b> | Frequência: <b>60,0 Hz</b>
             </p>
             <p style='color: var(--text-muted); font-size: 13px;'>Microinversores sincronizados via DTU.</p>
@@ -194,28 +262,28 @@
     </div>
 
     <script>
-        // 1. Gráfico Diário do Mês com Linha de Tendência
+        // 1. Gráfico Diário com Linha de Tendência
         new Chart(document.getElementById('chartDias').getContext('2d'), {
             data: {
                 labels: ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31"],
                 datasets: [
                     {
                         type: 'line',
-                        label: 'Linha de Tendência (Média)',
-                        data: [3.75, 3.89, 4.04, 3.6, 3.75, 3.89, 4.04, 3.6, 3.75, 3.89, 4.04, 3.6, 3.75, 3.89, 4.04, 3.6, 3.75, 3.89, 4.04, 3.6, 3.75, 3.89, 4.04, 3.6, 3.75, 6.71, null, null, null, null, null],
+                        label: 'Linha de Tendência',
+                        data: [3.73, 3.89, 4.06, 3.56, 3.73, 3.89, 4.06, 3.56, 3.73, 3.89, 4.06, 3.56, 3.73, 3.89, 4.06, 3.56, 3.73, 3.89, 4.06, 3.56, 3.73, 3.89, 4.06, 3.56, 3.73, 7.12, null, null, null, null, null],
                         borderColor: '#a855f7',
                         borderWidth: 2.5,
-                        pointRadius: 0,
+                        pointRadius: 2,
                         tension: 0.35,
                         fill: false
                     },
                     {
                         type: 'bar',
                         label: 'Geração Diária (kWh)',
-                        data: [3.48, 3.84, 4.21, 3.11, 3.48, 3.84, 4.21, 3.11, 3.48, 3.84, 4.21, 3.11, 3.48, 3.84, 4.21, 3.11, 3.48, 3.84, 4.21, 3.11, 3.48, 3.84, 4.21, 3.11, 3.48, 10.88, null, null, null, null, null],
+                        data: [3.48, 3.84, 4.21, 3.11, 3.48, 3.84, 4.21, 3.11, 3.48, 3.84, 4.21, 3.11, 3.48, 3.84, 4.21, 3.11, 3.48, 3.84, 4.21, 3.11, 3.48, 3.84, 4.21, 3.11, 3.48, 11.01, null, null, null, null, null],
                         backgroundColor: 'rgba(245, 158, 11, 0.75)',
                         hoverBackgroundColor: '#f59e0b',
-                        borderRadius: 6
+                        borderRadius: 5
                     }
                 ]
             },
@@ -223,7 +291,7 @@
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: { labels: { color: '#94a3b8', font: { size: 11 } } },
+                    legend: { labels: { color: '#94a3b8', font: { size: 10 } } },
                     tooltip: {
                         callbacks: {
                             label: function(c) {
@@ -245,15 +313,15 @@
             data: {
                 labels: ["06h", "07h", "08h", "09h", "10h", "11h", "12h", "13h", "14h", "15h", "16h", "17h", "18h"],
                 datasets: [{
-                    label: 'Potência Típica (W)',
-                    data: [94, 378, 1102, 2048, 2772, 3087, 3150, 2992, 2583, 1827, 1008, 315, 63],
+                    label: 'Potência Solar (W)',
+                    data: [88, 351, 1024, 1901, 2574, 2866, 2925, 2779, 2398, 1696, 936, 292, 58],
                     backgroundColor: function(context) {
                         const val = context.raw || 0;
-                        if (val >= 2000) return '#10b981'; // Pico solar máximo
+                        if (val >= 2000) return '#10b981';
                         if (val >= 1000) return '#f59e0b';
                         return '#38bdf8';
                     },
-                    borderRadius: 6
+                    borderRadius: 5
                 }]
             },
             options: {
@@ -264,7 +332,7 @@
                     tooltip: {
                         callbacks: {
                             label: function(c) {
-                                return 'Produção: ' + c.raw + ' W';
+                                return 'Potência Média: ' + Number(c.raw).toLocaleString('pt-BR') + ' W';
                             }
                         }
                     }
