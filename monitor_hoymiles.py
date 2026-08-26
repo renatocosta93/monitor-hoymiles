@@ -86,8 +86,7 @@ def carregar_estado():
         "meta_kwh": 18.0,
         "previsao_desc": "Ensolarado",
         "ultimo_alerta": "",
-        "historico_dias": {},
-        "historico_horas": {}
+        "historico_dias": {}
     }
 
 def salvar_estado(estado):
@@ -144,7 +143,6 @@ def gerar_painel_html(dados):
     horas_labels = json.dumps(dados["horas_labels"], ensure_ascii=False)
     horas_valores = json.dumps(dados["horas_valores"])
 
-    # Ícones SVG de Usina / Torre Elétrica (Online vs Offline)
     if dados["is_online"]:
         icone_usina = """
         <div class="tower-icon online" title="Usina Operando em Plena Geração">
@@ -233,7 +231,6 @@ def gerar_painel_html(dados):
             box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
         }}
 
-        /* Card Compacto de Potência Instantânea */
         .power-card-compact {{
             text-align: center;
             background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
@@ -251,7 +248,6 @@ def gerar_painel_html(dados):
         }}
         .power-sub {{ color: var(--text-muted); font-size: 13px; }}
 
-        /* Seção Faróis de Meta Lado a Lado */
         .farois-grid {{
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -325,14 +321,12 @@ def gerar_painel_html(dados):
             <p class="location">📍 Vargem Grande Paulista - SP | Atualizado às {dados['hora_atual']}</p>
         </header>
 
-        <!-- Card Compacto de Potência -->
         <div class="card power-card-compact">
             <div class="stat-label">Potência Instantânea de Geração</div>
             <div class="power-val">{dados['real_power']} <span style="font-size: 20px;">W</span></div>
             <div class="power-sub">{dados['eficiencia']}% da capacidade instalada ({int(POTENCIA_INSTALADA_WP)} Wp)</div>
         </div>
 
-        <!-- Faróis de Meta (Diário e Mensal) -->
         <div class="farois-grid">
             <div class="farol-card">
                 <div class="farol-luz" style="background-color: {dados['cor_farol_dia']}; color: {dados['cor_farol_dia']};"></div>
@@ -352,7 +346,6 @@ def gerar_painel_html(dados):
             </div>
         </div>
 
-        <!-- Card do Recorde do Mês -->
         <div class="card record-card">
             <div>
                 <div class="stat-label" style="color: #c084fc;">🏆 Recorde de Geração ({dados['mes_nome']})</div>
@@ -362,7 +355,6 @@ def gerar_painel_html(dados):
             <div class="record-badge">{dados['recorde_kwh']} <span style="font-size: 14px;">kWh</span></div>
         </div>
 
-        <!-- Gráfico Diário com Linha de Tendência Real -->
         <div class="card">
             <div class="stat-label">📅 Comparativo Diário com Linha de Tendência ({dados['mes_nome']})</div>
             <p style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">Produção real diária via API Hoymiles com média de tendência</p>
@@ -371,7 +363,6 @@ def gerar_painel_html(dados):
             </div>
         </div>
 
-        <!-- Gráfico de Horários Acumulados -->
         <div class="card">
             <div class="stat-label">⚡ Distribuição & Horários de Maior Produção</div>
             <p style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">Potência solar média registrada ao longo do dia</p>
@@ -421,7 +412,6 @@ def gerar_painel_html(dados):
     </div>
 
     <script>
-        // 1. Gráfico Diário com Linha de Tendência
         new Chart(document.getElementById('chartDias').getContext('2d'), {{
             data: {{
                 labels: {dias_labels},
@@ -466,7 +456,6 @@ def gerar_painel_html(dados):
             }}
         }});
 
-        // 2. Gráfico de Horários de Maior Produção
         new Chart(document.getElementById('chartHoras').getContext('2d'), {{
             type: 'bar',
             data: {{
@@ -515,6 +504,7 @@ def gerar_painel_html(dados):
 def main():
     agora_br = datetime.now(FUSO_BR)
     hora_int = agora_br.hour
+    minuto_int = agora_br.minute
     data_str = agora_br.strftime("%Y-%m-%d")
     ano_atual = agora_br.year
     mes_atual = agora_br.month
@@ -540,7 +530,7 @@ def main():
         estado["fechamento_enviado"] = False
 
     # ==========================================
-    # 2. COLETA DE DADOS NA HOYMILES (API + DOM)
+    # 2. COLETA DE DADOS NA HOYMILES
     # ==========================================
     captured_data = []
     auth_headers = {}
@@ -623,7 +613,6 @@ def main():
         finally:
             browser.close()
 
-    # Processamento de Dados
     real_power_val = 0.0
     today_eq_raw = None
     month_eq_raw = None
@@ -690,9 +679,7 @@ def main():
     total_kwh = converter_energia(total_eq_raw)
     co2_kg = converter_co2(co2_raw)
 
-    # ==========================================
-    # 3. HISTÓRICO MENSAL REAL E RECORDE
-    # ==========================================
+    # Histórico e Recorde
     historico = estado.get("historico_dias", {})
     if today_kwh > 0:
         historico[data_str] = round(today_kwh, 2)
@@ -724,7 +711,6 @@ def main():
         recorde_dia_str = f"Dia {dia_atual:02d}/{mes_atual:02d}"
         recorde_kwh = today_kwh
 
-    # Linha de Tendência Real (Média dos dias com geração)
     dias_com_dados = [v for v in dias_valores if v is not None and v > 0]
     media_real = sum(dias_com_dados) / max(len(dias_com_dados), 1) if dias_com_dados else 0.0
     dias_tendencia = []
@@ -735,18 +721,15 @@ def main():
         else:
             dias_tendencia.append(None)
 
-    # 4. Distribuição Horária
     horas_labels = ["06h", "07h", "08h", "09h", "10h", "11h", "12h", "13h", "14h", "15h", "16h", "17h", "18h"]
     fator_horario = [0.03, 0.12, 0.35, 0.65, 0.88, 0.98, 1.00, 0.95, 0.82, 0.58, 0.32, 0.10, 0.02]
     pot_ref = max(peak_power, real_power_val, POTENCIA_INSTALADA_WP * 0.65)
     horas_valores = [int(round(pot_ref * f)) for f in fator_horario]
 
-    # Metas e Faróis
     meta_dia = estado.get("meta_kwh", 18.0)
     pct_meta_dia = round((today_kwh / meta_dia) * 100, 1) if meta_dia > 0 else 0
     cor_farol_dia = "#10b981" if pct_meta_dia >= 100 else ("#f59e0b" if pct_meta_dia >= 60 else "#ef4444")
 
-    # Meta Mensal: dias do mês * meta diária proporcional
     meta_mes = round(meta_dia * dias_no_mes, 1)
     pct_meta_mes = round((month_kwh / meta_mes) * 100, 1) if meta_mes > 0 else 0
     cor_farol_mes = "#10b981" if pct_meta_mes >= 100 else ("#f59e0b" if pct_meta_mes >= 60 else "#ef4444")
@@ -829,8 +812,10 @@ def main():
     })
 
     # ==========================================
-    # 5. DISPAROS TELEGRAM
+    # 3. DISPAROS TELEGRAM
     # ==========================================
+
+    # A) Ativação Matinal
     if (5 <= hora_int <= 11) and not estado.get("dia_ativo", False):
         estado["dia_ativo"] = True
         estado["fechamento_enviado"] = False
@@ -848,30 +833,34 @@ def main():
         enviar_telegram(msg_manha)
         return
 
-    if hora_int >= 17 and real_power_val <= 10 and not estado.get("fechamento_enviado", False) and estado.get("dia_ativo", False):
-        estado["dia_ativo"] = False
-        estado["fechamento_enviado"] = True
-        salvar_estado(estado)
+    # B) Fechamento do Dia (Resiliente e Sem Travas)
+    if hora_int >= 17 and not estado.get("fechamento_enviado", False):
+        deve_fechar = (real_power_val <= 15 and today_kwh > 0.05) or (hora_int >= 18 and (minuto_int >= 30 or hora_int >= 19))
+        
+        if deve_fechar:
+            estado["dia_ativo"] = False
+            estado["fechamento_enviado"] = True
+            salvar_estado(estado)
 
-        status_meta = f"🟢 `{fmt_br(pct_meta_dia, 1)}% da meta atingida`" if pct_meta_dia >= 100 else f"🟡 `{fmt_br(pct_meta_dia, 1)}% da meta atingida`"
+            status_meta = f"🟢 `{fmt_br(pct_meta_dia, 1)}% da meta atingida`" if pct_meta_dia >= 100 else f"🟡 `{fmt_br(pct_meta_dia, 1)}% da meta atingida`"
 
-        msg_noite = f"🌙 *FIM DA IRRADIAÇÃO SOLAR* 🌙\n"
-        msg_noite += f"📅 `{hora_str}` | Usina em Repouso\n\n"
-        msg_noite += f"📊 *BALANÇO DO DIA*\n"
-        msg_noite += f"• *Gerado Hoje:* `{today_display}`\n"
-        msg_noite += f"• *Meta do Dia:* `{fmt_br(meta_dia, 2)} kWh` ({status_meta})\n"
-        if peak_power > 0: msg_noite += f"• *Pico Máximo:* `{fmt_br(peak_power, 0)} W`\n"
-        msg_noite += f"• *Mês Atual:* `{fmt_br(month_kwh, 2)} kWh`\n\n"
-        msg_noite += f"💰 *FINANCEIRO & AMBIENTAL*\n"
-        msg_noite += f"• *Economia Hoje:* `R$ {fmt_br(economia_dia, 2)}`\n"
-        msg_noite += f"• *Economia no Mês:* `R$ {fmt_br(economia_mes, 2)}`\n"
-        msg_noite += f"• *CO₂ Evitado:* `{fmt_br(co2_kg or (total_kwh*0.9), 2)} kg` (~{fmt_br(arvores_calc, 0)} árvores)\n\n"
-        msg_noite += f"🌐 *Painel completo:* {PAINEL_WEB_URL}"
-        enviar_telegram(msg_noite)
-        return
+            msg_noite = f"🌙 *FIM DA IRRADIAÇÃO SOLAR* 🌙\n"
+            msg_noite += f"📅 `{hora_str}` | Usina em Repouso\n\n"
+            msg_noite += f"📊 *BALANÇO DO DIA*\n"
+            msg_noite += f"• *Gerado Hoje:* `{today_display}`\n"
+            msg_noite += f"• *Meta do Dia:* `{fmt_br(meta_dia, 2)} kWh` ({status_meta})\n"
+            if peak_power > 0: msg_noite += f"• *Pico Máximo:* `{fmt_br(peak_power, 0)} W`\n"
+            msg_noite += f"• *Mês Atual:* `{fmt_br(month_kwh, 2)} kWh`\n\n"
+            msg_noite += f"💰 *FINANCEIRO & AMBIENTAL*\n"
+            msg_noite += f"• *Economia Hoje:* `R$ {fmt_br(economia_dia, 2)}`\n"
+            msg_noite += f"• *Economia no Mês:* `R$ {fmt_br(economia_mes, 2)}`\n"
+            msg_noite += f"• *CO₂ Evitado:* `{fmt_br(co2_kg or (total_kwh*0.9), 2)} kg` (~{fmt_br(arvores_calc, 0)} árvores)\n\n"
+            msg_noite += f"🌐 *Painel completo:* {PAINEL_WEB_URL}"
+            enviar_telegram(msg_noite)
+            return
 
-    # Notificação Periódica (A cada 30 min)
-    if estado.get("dia_ativo", False) and not estado.get("fechamento_enviado", False) and (real_power_val > 0 or today_kwh > 0):
+    # C) Notificação Periódica de 30 Minutos (Enquanto houver sol)
+    if (estado.get("dia_ativo", False) or hora_int < 18) and not estado.get("fechamento_enviado", False) and (real_power_val > 0 or today_kwh > 0):
         status_icon = "🟢 Online (Gerando)" if real_power_val > 10 else "🟡 Baixa Irradiação"
         pico_str = f" | *Pico:* `{fmt_br(peak_power or real_power_val, 0)} W`"
 
