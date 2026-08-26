@@ -18,7 +18,7 @@ TELEGRAM_CHAT_ID = "1020154663"
 PAINEL_WEB_URL = "https://renatocosta93.github.io/monitor-hoymiles/"
 
 POTENCIA_INSTALADA_WP = 4500.0  # Capacidade de 4.5 kW conforme seu aplicativo S-Miles
-TARIFA_KWH = 0.88               # Tarifa média de energia (R$/kWh)
+TARIFA_KWH = 1.02              # Tarifa média de energia (R$/kWh)
 
 # Localização: Vargem Grande Paulista - SP
 LATITUDE = -23.6028
@@ -705,7 +705,7 @@ def main():
         status_icon = "🟢 Online (Gerando)" if real_power_val > 10 else "🟡 Baixa Irradiação"
         pico_str = f" | *Pico:* `{fmt_br(peak_power or real_power_val, 0)} W`"
 
-        msg_padrao = f"☀️ *PAINEL SOLAR HOYMILES* ☀️\n"
+        msg_padrao = f"☀️ *USINA MENDES* ☀️\n"
         msg_padrao += f"📅 `{hora_str}` | {status_icon}\n\n"
         msg_padrao += f"📊 *GERAÇÃO & RENDIMENTO*\n"
         msg_padrao += f"• *Potência Atual:* `{fmt_br(real_power_val, 1)} W` ({fmt_br(eficiencia, 1)}% da usina)\n"
