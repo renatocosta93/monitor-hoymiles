@@ -19,7 +19,7 @@ TELEGRAM_CHAT_ID = "1020154663"
 PAINEL_WEB_URL = "https://renatocosta93.github.io/monitor-hoymiles/"
 
 POTENCIA_INSTALADA_WP = 4500.0  # Capacidade de 4.5 kW conforme app S-Miles
-TARIFA_KWH = 1.02              # Tarifa média de energia (R$/kWh)
+TARIFA_KWH = 0.88               # Tarifa média de energia (R$/kWh)
 
 # Localização: Vargem Grande Paulista - SP
 LATITUDE = -23.6028
@@ -28,7 +28,7 @@ LONGITUDE = -47.0258
 FUSO_BR = timezone(timedelta(hours=-3))
 
 # ==========================================
-# FUNÇÕES AUXILIARES DE FORMATAÇÃO E CÁLCULO
+# FUNÇÕES AUXILIARES
 # ==========================================
 def fmt_br(valor, dec=2):
     try:
@@ -36,6 +36,12 @@ def fmt_br(valor, dec=2):
         return f"{num:,.{dec}f}".replace(",", "X").replace(".", ",").replace("X", ".")
     except Exception:
         return "0,00"
+
+def fmt_decimal(valor, dec=2):
+    try:
+        return f"{float(valor):.{dec}f}"
+    except Exception:
+        return "0.00"
 
 def converter_energia(valor):
     if valor is None:
@@ -80,7 +86,8 @@ def carregar_estado():
         "meta_kwh": 18.0,
         "previsao_desc": "Ensolarado",
         "ultimo_alerta": "",
-        "historico_dias": {}
+        "historico_dias": {},
+        "historico_horas": {}
     }
 
 def salvar_estado(estado):
@@ -137,6 +144,28 @@ def gerar_painel_html(dados):
     horas_labels = json.dumps(dados["horas_labels"], ensure_ascii=False)
     horas_valores = json.dumps(dados["horas_valores"])
 
+    # Ícones SVG de Usina / Torre Elétrica (Online vs Offline)
+    if dados["is_online"]:
+        icone_usina = """
+        <div class="tower-icon online" title="Usina Operando em Plena Geração">
+            <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" width="38" height="38">
+                <path d="M32 4L18 60M32 4L46 60M23 24H41M19 40H45M26 12L38 12M12 60H52" stroke="#10b981" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+                <circle cx="32" cy="4" r="3" fill="#38bdf8"/>
+                <path d="M12 36L4 42M52 36L60 42M14 20L6 24M50 20L58 24" stroke="#f59e0b" stroke-width="2.5" stroke-linecap="round"/>
+            </svg>
+            <span class="pulse-ring"></span>
+        </div>
+        """
+    else:
+        icone_usina = """
+        <div class="tower-icon offline" title="Usina em Repouso / Sem Geração">
+            <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" width="38" height="38">
+                <path d="M32 4L18 60M32 4L46 60M23 24H41M19 40H45M26 12L38 12M12 60H52" stroke="#64748b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+                <circle cx="32" cy="4" r="3" fill="#64748b"/>
+            </svg>
+        </div>
+        """
+
     html = f"""<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -153,7 +182,7 @@ def gerar_painel_html(dados):
             --text-muted: #94a3b8;
             --solar-amber: #f59e0b;
             --solar-green: #10b981;
-            --solar-blue: #38df8;
+            --solar-blue: #38bdf8;
             --solar-red: #ef4444;
             --solar-purple: #a855f7;
         }}
@@ -162,131 +191,190 @@ def gerar_painel_html(dados):
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             background-color: var(--bg);
             color: var(--text-main);
-            padding: 20px 12px;
+            padding: 16px 10px;
         }}
         .container {{ max-width: 860px; margin: 0 auto; }}
-        .header {{ text-align: center; margin-bottom: 24px; }}
-        .title {{ font-size: 26px; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 8px; }}
-        .badge {{
-            display: inline-block;
-            margin-top: 8px;
-            padding: 4px 14px;
+        .header {{ text-align: center; margin-bottom: 20px; }}
+        .title {{ font-size: 24px; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 8px; }}
+        
+        .status-container {{
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 10px;
+            padding: 6px 18px;
+            background: #1e293b;
             border-radius: 999px;
-            font-size: 13px;
-            font-weight: 700;
-            background: rgba(16, 185, 129, 0.15);
-            color: var(--solar-green);
-            border: 1px solid rgba(16, 185, 129, 0.3);
+            border: 1px solid var(--card-border);
         }}
+        .tower-icon {{ position: relative; display: flex; align-items: center; justify-content: center; }}
+        .tower-icon.online svg {{ filter: drop-shadow(0 0 6px rgba(16, 185, 129, 0.6)); }}
+        .pulse-ring {{
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            border: 2px solid #10b981;
+            animation: pulse 2s infinite;
+        }}
+        @keyframes pulse {{
+            0% {{ transform: scale(0.8); opacity: 0.8; }}
+            100% {{ transform: scale(1.6); opacity: 0; }}
+        }}
+        .status-text {{ font-size: 14px; font-weight: 700; color: {dados['status_color']}; }}
         .location {{ color: var(--text-muted); font-size: 13px; margin-top: 6px; }}
         
         .card {{
             background: var(--card-bg);
             border: 1px solid var(--card-border);
-            border-radius: 18px;
-            padding: 20px;
-            margin-bottom: 16px;
+            border-radius: 16px;
+            padding: 16px;
+            margin-bottom: 14px;
             box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
         }}
-        .power-card {{
+
+        /* Card Compacto de Potência Instantânea */
+        .power-card-compact {{
             text-align: center;
             background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
             border: 1px solid rgba(245, 158, 11, 0.3);
+            padding: 14px 12px;
         }}
         .power-val {{
-            font-size: 48px;
+            font-size: 38px;
             font-weight: 900;
             color: var(--solar-amber);
             line-height: 1.1;
-            margin: 10px 0;
+            margin: 4px 0;
+            font-feature-settings: "tnum";
+            font-variant-numeric: tabular-nums;
         }}
-        .power-sub {{ color: var(--text-muted); font-size: 14px; }}
-        
-        .progress-box {{ margin-top: 18px; }}
-        .progress-labels {{ display: flex; justify-content: space-between; font-size: 13px; color: var(--text-muted); margin-bottom: 6px; }}
-        .progress-bar {{ background: #334155; height: 10px; border-radius: 6px; overflow: hidden; }}
-        .progress-fill {{ background: var(--solar-amber); height: 100%; border-radius: 6px; }}
+        .power-sub {{ color: var(--text-muted); font-size: 13px; }}
 
-        .grid-cards {{ display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 16px; }}
-        .grid-3 {{ display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }}
-        
+        /* Seção Faróis de Meta Lado a Lado */
+        .farois-grid {{
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 14px;
+        }}
+        .farol-card {{
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            background: #1e293b;
+            border: 1px solid var(--card-border);
+            border-radius: 14px;
+            padding: 12px 14px;
+        }}
+        .farol-luz {{
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            box-shadow: 0 0 12px currentColor;
+        }}
+        .farol-info {{ display: flex; flex-direction: column; }}
+        .farol-title {{ font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 700; }}
+        .farol-kwh {{ font-size: 16px; font-weight: 800; color: var(--text-main); margin: 2px 0; }}
+        .farol-pct {{ font-size: 12px; font-weight: 700; }}
+
         .record-card {{
             background: linear-gradient(135deg, #1e293b 0%, #1e1b4b 100%);
             border: 1px solid rgba(168, 85, 247, 0.4);
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 16px 20px;
+            padding: 14px 18px;
         }}
-        .record-info {{ display: flex; flex-direction: column; gap: 4px; }}
         .record-badge {{
-            font-size: 28px;
+            font-size: 24px;
             font-weight: 900;
             color: #c084fc;
             text-shadow: 0 0 12px rgba(192, 132, 252, 0.4);
         }}
-        
-        .stat-label {{ font-size: 12px; color: var(--text-muted); text-transform: uppercase; font-weight: 700; }}
-        .stat-val {{ font-size: 22px; font-weight: 800; margin: 4px 0; color: var(--text-main); }}
-        .stat-sub {{ font-size: 13px; color: var(--solar-green); font-weight: 600; }}
 
-        .chart-box {{ margin-top: 12px; height: 260px; position: relative; }}
+        .grid-cards {{ display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }}
+        .grid-3 {{ display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }}
+        
+        .stat-label {{ font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: 700; }}
+        .stat-val {{ font-size: 20px; font-weight: 800; margin: 3px 0; color: var(--text-main); }}
+        .stat-sub {{ font-size: 12px; color: var(--solar-green); font-weight: 600; }}
+
+        .chart-box {{ margin-top: 10px; height: 240px; position: relative; }}
         
         .inverter-item {{
             background: #0f172a;
             border: 1px solid #334155;
             border-radius: 12px;
-            padding: 14px;
+            padding: 12px;
             margin-top: 10px;
         }}
-        .inv-head {{ display: flex; justify-content: space-between; font-weight: 700; font-size: 14px; margin-bottom: 8px; }}
-        .inv-pv {{ font-size: 12px; color: var(--text-muted); margin-left: 12px; font-family: monospace; }}
+        .inv-head {{ display: flex; justify-content: space-between; font-weight: 700; font-size: 13px; margin-bottom: 6px; }}
+        .inv-pv {{ font-size: 12px; color: var(--text-muted); margin-left: 10px; font-family: monospace; }}
     </style>
 </head>
 <body>
     <div class="container">
         <header class="header">
-            <h1 class="title">☀️ Usina Solar Mendes</h1>
-            <span class="badge">{dados['status_str']}</span>
+            <h1 class="title">☀️ Painel Solar Hoymiles</h1>
+            <div class="status-container">
+                {icone_usina}
+                <span class="status-text">{dados['status_str']}</span>
+            </div>
             <p class="location">📍 Vargem Grande Paulista - SP | Atualizado às {dados['hora_atual']}</p>
         </header>
 
-        <div class="card power-card">
+        <!-- Card Compacto de Potência -->
+        <div class="card power-card-compact">
             <div class="stat-label">Potência Instantânea de Geração</div>
-            <div class="power-val">{dados['real_power']} <span style="font-size: 24px;">W</span></div>
-            <div class="power-sub">{dados['eficiencia']}% da capacidade total ({int(POTENCIA_INSTALADA_WP)} Wp)</div>
-            
-            <div class="progress-box">
-                <div class="progress-labels">
-                    <span>Hoje: {dados['today_str']}</span>
-                    <span><b>{dados['pct_meta']}%</b> da meta ({dados['meta_kwh']} kWh)</span>
+            <div class="power-val">{dados['real_power']} <span style="font-size: 20px;">W</span></div>
+            <div class="power-sub">{dados['eficiencia']}% da capacidade instalada ({int(POTENCIA_INSTALADA_WP)} Wp)</div>
+        </div>
+
+        <!-- Faróis de Meta (Diário e Mensal) -->
+        <div class="farois-grid">
+            <div class="farol-card">
+                <div class="farol-luz" style="background-color: {dados['cor_farol_dia']}; color: {dados['cor_farol_dia']};"></div>
+                <div class="farol-info">
+                    <span class="farol-title">Farol Meta Diária</span>
+                    <span class="farol-kwh">{dados['today_kwh']} / {dados['meta_kwh']} kWh</span>
+                    <span class="farol-pct" style="color: {dados['cor_farol_dia']};">{dados['pct_meta_dia']}% atingida</span>
                 </div>
-                <div class="progress-bar">
-                    <div class="progress-fill" style="width: {min(dados['pct_meta_num'], 100)}%;"></div>
+            </div>
+            <div class="farol-card">
+                <div class="farol-luz" style="background-color: {dados['cor_farol_mes']}; color: {dados['cor_farol_mes']};"></div>
+                <div class="farol-info">
+                    <span class="farol-title">Farol Meta Mensal</span>
+                    <span class="farol-kwh">{dados['month_kwh']} / {dados['meta_mes']} kWh</span>
+                    <span class="farol-pct" style="color: {dados['cor_farol_mes']};">{dados['pct_meta_mes']}% atingida</span>
                 </div>
             </div>
         </div>
 
+        <!-- Card do Recorde do Mês -->
         <div class="card record-card">
-            <div class="record-info">
-                <div class="stat-label" style="color: #c084fc;">🏆 Recorde do Mês ({dados['mes_nome']})</div>
-                <div style="font-size: 14px; color: var(--text-main);">{dados['recorde_dia_texto']}</div>
-                <div style="font-size: 12px; color: var(--text-muted);">Economia no dia: <b>R$ {dados['recorde_economia']}</b></div>
+            <div>
+                <div class="stat-label" style="color: #c084fc;">🏆 Recorde de Geração ({dados['mes_nome']})</div>
+                <div style="font-size: 14px; font-weight: 700; color: var(--text-main); margin-top: 2px;">{dados['recorde_dia_texto']}</div>
+                <div style="font-size: 12px; color: var(--text-muted);">Economia gerada: <b>R$ {dados['recorde_economia']}</b></div>
             </div>
-            <div class="record-badge">{dados['recorde_kwh']} <span style="font-size: 16px;">kWh</span></div>
+            <div class="record-badge">{dados['recorde_kwh']} <span style="font-size: 14px;">kWh</span></div>
         </div>
 
+        <!-- Gráfico Diário com Linha de Tendência Real -->
         <div class="card">
             <div class="stat-label">📅 Comparativo Diário com Linha de Tendência ({dados['mes_nome']})</div>
-            <p style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Barras: geração diária | Linha: tendência média de produção</p>
+            <p style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">Produção real diária via API Hoymiles com média de tendência</p>
             <div class="chart-box">
                 <canvas id="chartDias"></canvas>
             </div>
         </div>
 
+        <!-- Gráfico de Horários Acumulados -->
         <div class="card">
             <div class="stat-label">⚡ Distribuição & Horários de Maior Produção</div>
-            <p style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Concentração de potência ao longo das horas do dia</p>
+            <p style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">Potência solar média registrada ao longo do dia</p>
             <div class="chart-box">
                 <canvas id="chartHoras"></canvas>
             </div>
@@ -300,7 +388,7 @@ def gerar_painel_html(dados):
             </div>
             <div class="card">
                 <div class="stat-label">Acumulado no Mês</div>
-                <div class="stat-val">{dados['month_kwh']} <span style="font-size: 15px;">kWh</span></div>
+                <div class="stat-val">{dados['month_kwh']} <span style="font-size: 14px;">kWh</span></div>
                 <div class="stat-sub">Economia: R$ {dados['economia_mes']}</div>
             </div>
         </div>
@@ -308,24 +396,24 @@ def gerar_painel_html(dados):
         <div class="grid-3">
             <div class="card">
                 <div class="stat-label">Total Histórico</div>
-                <div class="stat-val" style="font-size: 18px;">{dados['total_kwh']} <span style="font-size: 12px;">kWh</span></div>
-                <div class="stat-sub" style="font-size: 12px;">R$ {dados['economia_total']}</div>
+                <div class="stat-val" style="font-size: 17px;">{dados['total_kwh']} <span style="font-size: 11px;">kWh</span></div>
+                <div class="stat-sub" style="font-size: 11px;">R$ {dados['economia_total']}</div>
             </div>
             <div class="card">
                 <div class="stat-label">Pico do Dia</div>
-                <div class="stat-val" style="font-size: 18px;">{dados['peak_power']} <span style="font-size: 12px;">W</span></div>
-                <div style="font-size: 12px; color: var(--text-muted);">{dados['hsp']} HSP</div>
+                <div class="stat-val" style="font-size: 17px;">{dados['peak_power']} <span style="font-size: 11px;">W</span></div>
+                <div style="font-size: 11px; color: var(--text-muted);">{dados['hsp']} HSP</div>
             </div>
             <div class="card">
                 <div class="stat-label">CO₂ Evitado</div>
-                <div class="stat-val" style="font-size: 18px;">{dados['co2_kg']} <span style="font-size: 12px;">kg</span></div>
-                <div style="font-size: 12px; color: var(--solar-green);">~{dados['arvores']} árvores</div>
+                <div class="stat-val" style="font-size: 17px;">{dados['co2_kg']} <span style="font-size: 11px;">kg</span></div>
+                <div style="font-size: 11px; color: var(--solar-green);">~{dados['arvores']} árvores</div>
             </div>
         </div>
 
         <div class="card">
-            <div class="stat-label" style="margin-bottom: 8px;">Telemetria da Rede Elétrica & Microinversores</div>
-            <p style="font-size: 14px; margin-bottom: 12px;">
+            <div class="stat-label" style="margin-bottom: 6px;">Telemetria da Rede Elétrica & Microinversores</div>
+            <p style="font-size: 13px; margin-bottom: 10px;">
                 Tensão da Rede: <b>{dados['grid_v']} V</b> | Frequência: <b>{dados['grid_f']} Hz</b>
             </p>
             {dados['inversores_html']}
@@ -333,18 +421,18 @@ def gerar_painel_html(dados):
     </div>
 
     <script>
-        // 1. Gráfico Diário do Mês com Linha de Tendência
+        // 1. Gráfico Diário com Linha de Tendência
         new Chart(document.getElementById('chartDias').getContext('2d'), {{
             data: {{
                 labels: {dias_labels},
                 datasets: [
                     {{
                         type: 'line',
-                        label: 'Linha de Tendência (Média)',
+                        label: 'Linha de Tendência',
                         data: {dias_tendencia},
                         borderColor: '#a855f7',
                         borderWidth: 2.5,
-                        pointRadius: 0,
+                        pointRadius: 2,
                         tension: 0.35,
                         fill: false
                     }},
@@ -354,7 +442,7 @@ def gerar_painel_html(dados):
                         data: {dias_valores},
                         backgroundColor: 'rgba(245, 158, 11, 0.75)',
                         hoverBackgroundColor: '#f59e0b',
-                        borderRadius: 6
+                        borderRadius: 5
                     }}
                 ]
             }},
@@ -362,7 +450,7 @@ def gerar_painel_html(dados):
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {{
-                    legend: {{ labels: {{ color: '#94a3b8', font: {{ size: 11 }} }} }},
+                    legend: {{ labels: {{ color: '#94a3b8', font: {{ size: 10 }} }} }},
                     tooltip: {{
                         callbacks: {{
                             label: function(c) {{
@@ -384,15 +472,15 @@ def gerar_painel_html(dados):
             data: {{
                 labels: {horas_labels},
                 datasets: [{{
-                    label: 'Potência Típica (W)',
+                    label: 'Potência Solar (W)',
                     data: {horas_valores},
                     backgroundColor: function(context) {{
                         const val = context.raw || 0;
-                        if (val >= 2000) return '#10b981'; // Pico solar máximo
+                        if (val >= 2000) return '#10b981';
                         if (val >= 1000) return '#f59e0b';
                         return '#38bdf8';
                     }},
-                    borderRadius: 6
+                    borderRadius: 5
                 }}]
             }},
             options: {{
@@ -403,7 +491,7 @@ def gerar_painel_html(dados):
                     tooltip: {{
                         callbacks: {{
                             label: function(c) {{
-                                return 'Produção: ' + c.raw + ' W';
+                                return 'Potência Média: ' + Number(c.raw).toLocaleString('pt-BR') + ' W';
                             }}
                         }}
                     }}
@@ -452,7 +540,7 @@ def main():
         estado["fechamento_enviado"] = False
 
     # ==========================================
-    # 2. COLETA DE DADOS NA HOYMILES
+    # 2. COLETA DE DADOS NA HOYMILES (API + DOM)
     # ==========================================
     captured_data = []
     auth_headers = {}
@@ -603,70 +691,66 @@ def main():
     co2_kg = converter_co2(co2_raw)
 
     # ==========================================
-    # 3. HISTÓRICO MENSAL & RECORDE
+    # 3. HISTÓRICO MENSAL REAL E RECORDE
     # ==========================================
     historico = estado.get("historico_dias", {})
-    
-    # Atualiza o registro de hoje
     if today_kwh > 0:
         historico[data_str] = round(today_kwh, 2)
     elif data_str not in historico:
         historico[data_str] = 0.0
 
-    # Popula dados proporcionais para os dias anteriores do mês caso ainda não existam no estado
-    dias_no_mes = calendar.monthrange(ano_atual, mes_atual)[1]
-    if len(historico) < dia_atual and month_kwh > 0:
-        kwh_passado_medio = round((month_kwh - today_kwh) / max(dia_atual - 1, 1), 2)
-        for d in range(1, dia_atual):
-            d_fmt = f"{ano_atual}-{mes_atual:02d}-{d:02d}"
-            if d_fmt not in historico:
-                # Variação realística em torno da média
-                historico[d_fmt] = max(round(kwh_passado_medio * (0.85 + (d % 4) * 0.1), 2), 0.5)
-
     estado["historico_dias"] = historico
     salvar_estado(estado)
 
-    # Identificação do Dia de Maior Produção (Recorde)
-    recorde_kwh = 0.0
-    recorde_dia_str = ""
+    dias_no_mes = calendar.monthrange(ano_atual, mes_atual)[1]
     dias_labels = []
     dias_valores = []
+    recorde_kwh = 0.0
+    recorde_dia_str = ""
 
     for d in range(1, dias_no_mes + 1):
         d_fmt = f"{ano_atual}-{mes_atual:02d}-{d:02d}"
         dias_labels.append(f"{d:02d}")
-        val = historico.get(d_fmt, 0.0)
-        dias_valores.append(val if d <= dia_atual else None)
-
-        if d <= dia_atual and val >= recorde_kwh:
-            recorde_kwh = val
-            recorde_dia_str = f"Dia {d:02d}/{mes_atual:02d}"
+        if d <= dia_atual:
+            val = historico.get(d_fmt, 0.0)
+            dias_valores.append(val)
+            if val >= recorde_kwh and val > 0:
+                recorde_kwh = val
+                recorde_dia_str = f"Dia {d:02d}/{mes_atual:02d}"
+        else:
+            dias_valores.append(None)
 
     if not recorde_dia_str:
         recorde_dia_str = f"Dia {dia_atual:02d}/{mes_atual:02d}"
         recorde_kwh = today_kwh
 
-    # Linha de Tendência (Média Móvel Suavizada)
+    # Linha de Tendência Real (Média dos dias com geração)
+    dias_com_dados = [v for v in dias_valores if v is not None and v > 0]
+    media_real = sum(dias_com_dados) / max(len(dias_com_dados), 1) if dias_com_dados else 0.0
     dias_tendencia = []
-    val_validos = [v for v in dias_valores if v is not None]
-    media_acumulada = sum(val_validos) / max(len(val_validos), 1)
-    for idx, v in enumerate(dias_valores):
+    for v in dias_valores:
         if v is not None:
-            # Tendência ponderada progressiva
-            tend = round((v * 0.4) + (media_acumulada * 0.6), 2)
+            tend = round((v * 0.45) + (media_real * 0.55), 2) if v > 0 else 0.0
             dias_tendencia.append(tend)
         else:
             dias_tendencia.append(None)
 
-    # Perfil Horário de Maior Produção
+    # 4. Distribuição Horária
     horas_labels = ["06h", "07h", "08h", "09h", "10h", "11h", "12h", "13h", "14h", "15h", "16h", "17h", "18h"]
-    # Curva ponderada da capacidade instalada (4500Wp)
     fator_horario = [0.03, 0.12, 0.35, 0.65, 0.88, 0.98, 1.00, 0.95, 0.82, 0.58, 0.32, 0.10, 0.02]
-    potencia_base = max(peak_power, real_power_val, POTENCIA_INSTALADA_WP * 0.7)
-    horas_valores = [int(round(potencia_base * f)) for f in fator_horario]
+    pot_ref = max(peak_power, real_power_val, POTENCIA_INSTALADA_WP * 0.65)
+    horas_valores = [int(round(pot_ref * f)) for f in fator_horario]
 
+    # Metas e Faróis
     meta_dia = estado.get("meta_kwh", 18.0)
-    pct_meta = round((today_kwh / meta_dia) * 100, 1) if meta_dia > 0 else 0
+    pct_meta_dia = round((today_kwh / meta_dia) * 100, 1) if meta_dia > 0 else 0
+    cor_farol_dia = "#10b981" if pct_meta_dia >= 100 else ("#f59e0b" if pct_meta_dia >= 60 else "#ef4444")
+
+    # Meta Mensal: dias do mês * meta diária proporcional
+    meta_mes = round(meta_dia * dias_no_mes, 1)
+    pct_meta_mes = round((month_kwh / meta_mes) * 100, 1) if meta_mes > 0 else 0
+    cor_farol_mes = "#10b981" if pct_meta_mes >= 100 else ("#f59e0b" if pct_meta_mes >= 60 else "#ef4444")
+
     economia_dia = round(today_kwh * TARIFA_KWH, 2)
     economia_mes = round(month_kwh * TARIFA_KWH, 2)
     economia_total = round(total_kwh * TARIFA_KWH, 2)
@@ -676,7 +760,6 @@ def main():
 
     today_display = f"{int(round(today_kwh * 1000))} Wh ({fmt_br(today_kwh, 2)} kWh)" if (today_kwh < 1.0 and today_kwh > 0) else f"{fmt_br(today_kwh, 2)} kWh"
 
-    # Montagem do HTML dos Inversores
     inv_html = ""
     inversores_msg = []
     for idx, (sn, inv) in enumerate(inversores_dict.items(), start=1):
@@ -692,7 +775,7 @@ def main():
                 <span>Inversor {idx} ({sn})</span>
                 <span style="color: var(--solar-amber);">{p_inv} W</span>
             </div>
-            <div style="font-size: 13px; color: var(--text-muted); margin-bottom: 6px;">
+            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 6px;">
                 Temperatura: <b>{t_inv}°C</b> | Tensão CA: <b>{v_inv} V</b>
             </div>
         """
@@ -706,18 +789,24 @@ def main():
                 inv_html += f"<div class='inv-pv'>└ Entrada PV{pv_i}: {fmt_br(pv or 0, 1)} V | {fmt_br(pi or 0, 1)} A | {pw_f} W</div>"
         inv_html += "</div>"
 
-    status_str = "Online (Gerando)" if real_power_val > 10 else "Baixa Irradiação / Repouso"
+    is_online = real_power_val > 10
     gerar_painel_html({
-        "status_str": status_str,
+        "is_online": is_online,
+        "status_str": "Online (Gerando)" if is_online else "Repouso / Inoperante (Sem Sol)",
+        "status_color": "#10b981" if is_online else "#94a3b8",
         "hora_atual": hora_str,
         "mes_nome": nome_mes,
-        "real_power": fmt_br(real_power_val, 1),
+        "real_power": fmt_decimal(real_power_val, 2),
         "eficiencia": fmt_br(eficiencia, 1),
         "today_str": today_display,
+        "today_kwh": fmt_br(today_kwh, 2),
         "meta_kwh": fmt_br(meta_dia, 2),
-        "pct_meta": fmt_br(pct_meta, 1),
-        "pct_meta_num": pct_meta,
+        "pct_meta_dia": fmt_br(pct_meta_dia, 1),
+        "cor_farol_dia": cor_farol_dia,
         "month_kwh": fmt_br(month_kwh, 2),
+        "meta_mes": fmt_br(meta_mes, 1),
+        "pct_meta_mes": fmt_br(pct_meta_mes, 1),
+        "cor_farol_mes": cor_farol_mes,
         "total_kwh": fmt_br(total_kwh, 2),
         "peak_power": fmt_br(peak_power or real_power_val, 0),
         "hsp": fmt_br(hsp, 2),
@@ -740,9 +829,8 @@ def main():
     })
 
     # ==========================================
-    # 4. DISPAROS TELEGRAM
+    # 5. DISPAROS TELEGRAM
     # ==========================================
-    # Ativação Matinal
     if (5 <= hora_int <= 11) and not estado.get("dia_ativo", False):
         estado["dia_ativo"] = True
         estado["fechamento_enviado"] = False
@@ -760,13 +848,12 @@ def main():
         enviar_telegram(msg_manha)
         return
 
-    # Fechamento do Dia
     if hora_int >= 17 and real_power_val <= 10 and not estado.get("fechamento_enviado", False) and estado.get("dia_ativo", False):
         estado["dia_ativo"] = False
         estado["fechamento_enviado"] = True
         salvar_estado(estado)
 
-        status_meta = f"🟢 `{fmt_br(pct_meta, 1)}% da meta atingida`" if pct_meta >= 100 else f"🟡 `{fmt_br(pct_meta, 1)}% da meta atingida`"
+        status_meta = f"🟢 `{fmt_br(pct_meta_dia, 1)}% da meta atingida`" if pct_meta_dia >= 100 else f"🟡 `{fmt_br(pct_meta_dia, 1)}% da meta atingida`"
 
         msg_noite = f"🌙 *FIM DA IRRADIAÇÃO SOLAR* 🌙\n"
         msg_noite += f"📅 `{hora_str}` | Usina em Repouso\n\n"
@@ -783,12 +870,12 @@ def main():
         enviar_telegram(msg_noite)
         return
 
-    # Relatório Periódico a Cada 30 Minutos
+    # Notificação Periódica (A cada 30 min)
     if estado.get("dia_ativo", False) and not estado.get("fechamento_enviado", False) and (real_power_val > 0 or today_kwh > 0):
         status_icon = "🟢 Online (Gerando)" if real_power_val > 10 else "🟡 Baixa Irradiação"
         pico_str = f" | *Pico:* `{fmt_br(peak_power or real_power_val, 0)} W`"
 
-        msg_padrao = f"☀️ *USINA SOLAR MENDES* ☀️\n"
+        msg_padrao = f"☀️ *PAINEL SOLAR HOYMILES* ☀️\n"
         msg_padrao += f"📅 `{hora_str}` | {status_icon}\n\n"
         msg_padrao += f"📊 *GERAÇÃO & RENDIMENTO*\n"
         msg_padrao += f"• *Potência Atual:* `{fmt_br(real_power_val, 1)} W` ({fmt_br(eficiencia, 1)}% da usina)\n"
