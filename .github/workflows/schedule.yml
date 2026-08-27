@@ -2,9 +2,8 @@ name: Monitor Hoymiles 30min
 
 on:
   schedule:
-    # Executa a cada 30 minutos (nos minutos 00 e 30), das 05h às 19h30 BRT / 08h às 22h30 UTC.
-    # Nota: Execuções no GitHub Actions podem sofrer atrasos dependendo da fila do servidor.
-    - cron: '0,30 8-22 * * *'
+    # Executa a cada 30 minutos das 05h00 às 20h30 BRT (08h00 às 23h30 UTC)
+    - cron: '0,30 8-23 * * *'
   workflow_dispatch:
 
 permissions:
