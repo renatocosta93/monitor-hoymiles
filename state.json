@@ -1,9 +1,9 @@
 {
-  "dia_ativo": false,
-  "fechamento_enviado": true,
-  "data_atual": "2026-08-26",
-  "meta_kwh": 13.28,
-  "previsao_desc": "Chuva Leve (12.9°C a 22.2°C, 3.6 HSP)",
+  "dia_ativo": true,
+  "fechamento_enviado": false,
+  "data_atual": "2026-08-27",
+  "meta_kwh": 21.03,
+  "previsao_desc": "Sol entre nuvens (14.6°C a 25.1°C, 5.7 HSP)",
   "ultimo_alerta": "",
   "historico_dias": {
     "2026-08-26": 14.72,
@@ -31,6 +31,7 @@
     "2026-08-22": 3.84,
     "2026-08-23": 4.21,
     "2026-08-24": 3.11,
-    "2026-08-25": 3.48
+    "2026-08-25": 3.48,
+    "2026-08-27": 274.0
   }
 }
