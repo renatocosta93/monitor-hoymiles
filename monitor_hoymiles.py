@@ -26,7 +26,7 @@ LONGITUDE = -47.0258
 FUSO_BR = timezone(timedelta(hours=-3))
 
 # ==========================================
-# FUNÇÕES AUXILIARES
+# FUNÇÕES AUXILIARES DE FORMATAÇÃO E CÁLCULO
 # ==========================================
 def fmt_br(valor, dec=2):
     try:
@@ -67,12 +67,11 @@ def carregar_estado():
         except Exception:
             pass
     return {
-        "dia_ativo": False,
-        "fechamento_enviado": False,
         "data_atual": "",
+        "data_bom_dia_enviado": "",
+        "data_fechamento_enviado": "",
         "meta_kwh": 18.0,
         "previsao_desc": "Ensolarado",
-        "ultimo_alerta": "",
         "historico_dias": {}
     }
 
@@ -114,17 +113,38 @@ def obter_previsao_tempo():
         print(f"Aviso previsão: {e}")
         return {"desc": "Ensolarado", "t_max": 28, "t_min": 18, "hsp": 5.0, "meta_kwh": 18.5}
 
+# ==========================================
+# VALIDADOR DE ENVIO TELEGRAM COM AUTO-CURA
+# ==========================================
 def enviar_telegram(mensagem):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     payload = {"chat_id": TELEGRAM_CHAT_ID, "text": mensagem, "parse_mode": "Markdown"}
+    
     try:
         res = requests.post(url, json=payload, timeout=15)
-        print(f"Status Envio Telegram: {res.status_code}")
+        if res.status_code == 200:
+            print("✅ Mensagem enviada com sucesso ao Telegram.")
+            return True
+        else:
+            print(f"⚠️ Telegram recusou Markdown (HTTP {res.status_code}): {res.text}")
+            print("🔄 Ativando Auto-Cura: Reenviando em modo texto limpo...")
+            
+            texto_limpo = mensagem.replace("*", "").replace("`", "").replace("_", "")
+            payload_fallback = {"chat_id": TELEGRAM_CHAT_ID, "text": texto_limpo}
+            res_fb = requests.post(url, json=payload_fallback, timeout=15)
+            
+            if res_fb.status_code == 200:
+                print("✅ Auto-Cura executada com sucesso: Mensagem entregue.")
+                return True
+            else:
+                print(f"❌ Falha crítica Telegram: {res_fb.status_code} - {res_fb.text}")
+                return False
     except Exception as e:
-        print(f"Erro envio Telegram: {e}")
+        print(f"❌ Erro de conexão Telegram: {e}")
+        return False
 
 # ==========================================
-# PAINEL WEB HTML
+# GERAÇÃO DO PAINEL WEB HTML
 # ==========================================
 def gerar_painel_html(dados):
     if dados["is_online"]:
@@ -493,23 +513,20 @@ def main():
     dia_atual = agora_br.day
     hora_str = agora_br.strftime("%d/%m/%Y - %H:%M")
 
+    print(f"🚀 Monitor Hoymiles em execução: {hora_str} BRT...")
+
     meses_pt = ["", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
     nome_mes = f"{meses_pt[mes_atual]}/{ano_atual}"
 
     estado = carregar_estado()
     
-    # 1. Reset diário de estado
+    # 1. Atualização diária da previsão do tempo
     if estado.get("data_atual") != data_str:
         estado["data_atual"] = data_str
-        estado["dia_ativo"] = False
-        estado["fechamento_enviado"] = False
         prev = obter_previsao_tempo()
         estado["meta_kwh"] = prev["meta_kwh"]
         estado["previsao_desc"] = f"{prev['desc']} ({prev['t_min']}°C a {prev['t_max']}°C, {prev['hsp']} HSP)"
         salvar_estado(estado)
-
-    if hora_int < 16:
-        estado["fechamento_enviado"] = False
 
     # ==========================================
     # 2. COLETA DE DADOS NA HOYMILES
@@ -526,7 +543,8 @@ def main():
                 token = request.headers.get("authorization") or request.headers.get("token")
                 if token and len(token) > 15:
                     auth_headers = {"Content-Type": "application/json", "Authorization": token, "token": token}
-        except: pass
+        except Exception:
+            pass
 
     def interceptar_resposta(response):
         nonlocal station_id
@@ -537,7 +555,8 @@ def main():
                     captured_data.append(d)
                     sid = d.get("data", {}).get("id") or d.get("data", {}).get("sid")
                     if sid: station_id = str(sid)
-        except: pass
+        except Exception:
+            pass
 
     with sync_playwright() as p:
         browser = p.chromium.launch(headless=True)
@@ -591,7 +610,7 @@ def main():
                 captured_data.extend(api_res)
 
         except Exception as e:
-            print(f"Navegação: {e}")
+            print(f"Aviso Playwright: {e}")
         finally:
             browser.close()
 
@@ -711,7 +730,7 @@ def main():
 
     today_display = f"{int(round(today_kwh * 1000))} Wh ({fmt_br(today_kwh, 2)} kWh)" if (today_kwh < 1.0 and today_kwh > 0) else f"{fmt_br(today_kwh, 2)} kWh"
 
-    # Topologia Elétrica
+    # Topologia Elétrica (Mapa)
     mapa_html = ""
     inversores_msg = []
     
@@ -790,13 +809,12 @@ def main():
     })
 
     # ==========================================
-    # 3. DISPAROS TELEGRAM
+    # 3. VALIDADOR & DISPARADOR TELEGRAM
     # ==========================================
 
-    # A) ATIVAÇÃO MATINAL — Dispara pontualmente às 06h00 (ou na 1ª execução a partir das 06h00)
-    if (6 <= hora_int <= 11) and not estado.get("dia_ativo", False):
-        estado["dia_ativo"] = True
-        estado["fechamento_enviado"] = False
+    # A) MENSAGEM MATINAL (BOM DIA) — 1x por dia a partir das 06h00
+    if (6 <= hora_int <= 12) and (estado.get("data_bom_dia_enviado") != data_str):
+        estado["data_bom_dia_enviado"] = data_str
         salvar_estado(estado)
 
         msg_manha = f"🌅 *USINA ATIVADA — BOM DIA!* ☀️\n"
@@ -806,18 +824,14 @@ def main():
         msg_manha += f"🎯 *META DE GERAÇÃO PARA HOJE*\n"
         msg_manha += f"• *Meta Estimada:* `{fmt_br(meta_dia, 2)} kWh` (~R$ {fmt_br(meta_dia*TARIFA_KWH, 2)})\n"
         msg_manha += f"• *Capacidade:* `{fmt_br(POTENCIA_INSTALADA_WP/1000.0, 1)} kWp`\n"
-        msg_manha += f"• *Status:* 🟢 Monitoramento matinal iniciado\n\n"
+        msg_manha += f"• *Status:* 🟢 Monitoramento matinal ativo\n\n"
         msg_manha += f"🌐 *Painel ao vivo:* {PAINEL_WEB_URL}"
         enviar_telegram(msg_manha)
-        return
 
-    # B) FECHAMENTO NOTURNO (Após 17h00 quando a geração cessa)
-    if hora_int >= 17 and not estado.get("fechamento_enviado", False):
-        deve_fechar = (real_power_val <= 10 and today_kwh > 0.05) or (hora_int >= 18 and (minuto_int >= 30 or hora_int >= 19))
-        
-        if deve_fechar:
-            estado["dia_ativo"] = False
-            estado["fechamento_enviado"] = True
+    # B) FECHAMENTO DA NOITE — 1x por dia após 18h30
+    if (hora_int >= 18 and minuto_int >= 30) or hora_int >= 19:
+        if estado.get("data_fechamento_enviado") != data_str:
+            estado["data_fechamento_enviado"] = data_str
             salvar_estado(estado)
 
             status_meta = f"🟢 `{fmt_br(pct_meta_dia, 1)}% da meta atingida`" if pct_meta_dia >= 100 else f"🟡 `{fmt_br(pct_meta_dia, 1)}% da meta atingida`"
@@ -836,9 +850,15 @@ def main():
             enviar_telegram(msg_noite)
             return
 
-    # C) NOTIFICAÇÃO PERIÓDICA DE 30 MINUTOS (Liberada após a ativação matinal)
-    if estado.get("dia_ativo", False) and not estado.get("fechamento_enviado", False):
-        status_icon = "🟢 Online (Gerando)" if real_power_val > 10 else "🟡 Baixa Irradiação"
+    # C) NOTIFICAÇÃO PERIÓDICA DE 30 MINUTOS (Com Validação de Dados)
+    if 6 <= hora_int <= 18:
+        dados_validos = (today_kwh > 0) or (real_power_val > 0) or bool(inversores_dict)
+
+        if not dados_validos:
+            print("⚠️ Leitura vazia ou indisponível neste ciclo. Envio ignorado para evitar dados zerados.")
+            return
+
+        status_icon = "🟢 Online (Gerando)" if real_power_val > 10 else "🟡 Baixa Irradiação / Início"
         pico_str = f" | *Pico:* `{fmt_br(peak_power or real_power_val, 0)} W`"
 
         msg_padrao = f"☀️ *PAINEL SOLAR HOYMILES* ☀️\n"
@@ -863,9 +883,10 @@ def main():
             msg_padrao += "\n"
 
         msg_padrao += f"🌐 *Painel Web:* {PAINEL_WEB_URL}"
+
         enviar_telegram(msg_padrao)
-    else:
-        print("Ciclo concluído.")
+
+    print("🏁 Ciclo de monitoramento finalizado com sucesso.")
 
 if __name__ == "__main__":
     main()
