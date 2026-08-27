@@ -2,8 +2,8 @@ name: Monitor Hoymiles 30min
 
 on:
   schedule:
-    # Executa a cada 30 minutos das 05h00 às 20h30 BRT (08h00 às 23h30 UTC)
-    - cron: '0,30 8-23 * * *'
+    # Executa a cada 30 min (minutos :05 e :35) das 05h às 20h30 BRT (08h às 23h30 UTC)
+    - cron: '5,35 8-23 * * *'
   workflow_dispatch:
 
 permissions:
@@ -23,23 +23,10 @@ jobs:
         with:
           python-version: '3.10'
 
-      - name: Cache do Playwright e Dependências
-        id: cache-deps
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/ms-playwright
-            ~/.cache/pip
-          key: ${{ runner.os }}-hoymiles-cache-v1
-          restore-keys: |
-            ${{ runner.os }}-hoymiles-cache-
-
       - name: Instalar Dependências e Navegador
         run: |
           pip install playwright requests
-          if [ "${{ steps.cache-deps.outputs.cache-hit }}" != "true" ]; then
-            playwright install chromium
-          fi
+          playwright install --with-deps chromium
 
       - name: Executar Monitoramento
         run: python monitor_hoymiles.py
