@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Painel Solar Hoymiles — Vargem Grande Paulista</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
             --bg: #0b1120;
@@ -15,8 +14,7 @@
             --solar-amber: #f59e0b;
             --solar-green: #10b981;
             --solar-blue: #38bdf8;
-            --solar-red: #ef4444;
-            --solar-purple: #a855f7;
+            --solar-purple: #8b5cf6;
         }
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body {
@@ -26,15 +24,15 @@
             padding: 16px 10px;
         }
         .container { max-width: 860px; margin: 0 auto; }
-        .header { text-align: center; margin-bottom: 20px; }
+        .header { text-align: center; margin-bottom: 18px; }
         .title { font-size: 24px; font-weight: 800; display: flex; align-items: center; justify-content: center; gap: 8px; }
         
         .status-container {
             display: inline-flex;
             align-items: center;
             gap: 10px;
-            margin-top: 10px;
-            padding: 6px 18px;
+            margin-top: 8px;
+            padding: 5px 16px;
             background: #1e293b;
             border-radius: 999px;
             border: 1px solid var(--card-border);
@@ -53,8 +51,8 @@
             0% { transform: scale(0.8); opacity: 0.8; }
             100% { transform: scale(1.6); opacity: 0; }
         }
-        .status-text { font-size: 14px; font-weight: 700; color: #94a3b8; }
-        .location { color: var(--text-muted); font-size: 13px; margin-top: 6px; }
+        .status-text { font-size: 13px; font-weight: 700; color: #94a3b8; }
+        .location { color: var(--text-muted); font-size: 12px; margin-top: 6px; }
         
         .card {
             background: var(--card-bg);
@@ -65,6 +63,7 @@
             box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
         }
 
+        /* Card Compacto de Potência */
         .power-card-compact {
             text-align: center;
             background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
@@ -82,6 +81,7 @@
         }
         .power-sub { color: var(--text-muted); font-size: 13px; }
 
+        /* Faróis de Meta Inline */
         .farois-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -98,17 +98,24 @@
             padding: 12px 14px;
         }
         .farol-luz {
-            width: 22px;
-            height: 22px;
+            width: 18px;
+            height: 18px;
             border-radius: 50%;
             flex-shrink: 0;
-            box-shadow: 0 0 12px currentColor;
+            box-shadow: 0 0 10px currentColor;
         }
-        .farol-info { display: flex; flex-direction: column; }
+        .farol-info { display: flex; flex-direction: column; width: 100%; }
         .farol-title { font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 700; }
-        .farol-kwh { font-size: 16px; font-weight: 800; color: var(--text-main); margin: 2px 0; }
-        .farol-pct { font-size: 12px; font-weight: 700; }
+        .farol-inline {
+            display: flex;
+            align-items: baseline;
+            justify-content: space-between;
+            margin-top: 3px;
+        }
+        .farol-kwh-line { font-size: 15px; font-weight: 800; color: var(--text-main); }
+        .farol-pct-tag { font-size: 12px; font-weight: 700; }
 
+        /* Recorde */
         .record-card {
             background: linear-gradient(135deg, #1e293b 0%, #1e1b4b 100%);
             border: 1px solid rgba(168, 85, 247, 0.4);
@@ -125,23 +132,105 @@
         }
 
         .grid-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
-        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
-        
         .stat-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; font-weight: 700; }
         .stat-val { font-size: 20px; font-weight: 800; margin: 3px 0; color: var(--text-main); }
         .stat-sub { font-size: 12px; color: var(--solar-green); font-weight: 600; }
 
-        .chart-box { margin-top: 10px; height: 240px; position: relative; }
-        
-        .inverter-item {
+        /* DTU & Conectividade Cards */
+        .dtu-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 12px;
+            margin-top: 10px;
+        }
+        .dtu-item {
             background: #0f172a;
             border: 1px solid #334155;
             border-radius: 12px;
-            padding: 12px;
-            margin-top: 10px;
+            padding: 12px 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
         }
-        .inv-head { display: flex; justify-content: space-between; font-weight: 700; font-size: 13px; margin-bottom: 6px; }
-        .inv-pv { font-size: 12px; color: var(--text-muted); margin-left: 10px; font-family: monospace; }
+        .dtu-item-title { font-size: 11px; text-transform: uppercase; color: var(--text-muted); font-weight: 700; }
+        .dtu-item-val { font-size: 14px; font-weight: 700; color: var(--text-main); display: flex; align-items: center; gap: 6px; }
+        .dtu-item-sub { font-size: 12px; color: var(--solar-green); font-weight: 600; }
+
+        /* ==========================================
+           MAPA ELÉTRICO / TOPOLOGIA DA USINA
+           ========================================== */
+        .topology-container {
+            margin-top: 14px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+        }
+        .topo-node-total {
+            background: linear-gradient(180deg, #8b5cf6 0%, #6d28d9 100%);
+            border: 1px solid #a78bfa;
+            border-radius: 12px;
+            padding: 10px 24px;
+            text-align: center;
+            box-shadow: 0 4px 14px rgba(139, 92, 246, 0.4);
+            min-width: 150px;
+            position: relative;
+        }
+        .topo-total-title { font-size: 11px; text-transform: uppercase; color: #ede9fe; font-weight: 700; }
+        .topo-total-val { font-size: 20px; font-weight: 900; color: #ffffff; }
+
+        .topo-branch-line {
+            width: 2px;
+            height: 18px;
+            background: #64748b;
+        }
+        .topo-inverters-wrapper {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 16px;
+            width: 100%;
+            position: relative;
+        }
+        .topo-inverter-col {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 14px;
+            padding: 14px 10px;
+        }
+        .topo-inv-box {
+            background: linear-gradient(180deg, #0284c7 0%, #0369a1 100%);
+            border: 1px solid #38bdf8;
+            border-radius: 10px;
+            padding: 8px 14px;
+            text-align: center;
+            width: 90%;
+            box-shadow: 0 4px 10px rgba(2, 132, 199, 0.3);
+        }
+        .topo-inv-pow { font-size: 17px; font-weight: 800; color: #ffffff; }
+        .topo-inv-sn { font-size: 10px; color: #bae6fd; font-family: monospace; }
+
+        .topo-panels-stack {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            width: 100%;
+            margin-top: 12px;
+        }
+        .topo-panel-box {
+            background: linear-gradient(90deg, #1e293b 0%, #0b1329 100%);
+            border: 1px solid #334155;
+            border-left: 4px solid var(--solar-amber);
+            border-radius: 8px;
+            padding: 8px 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .topo-panel-id { font-size: 11px; font-weight: 700; color: var(--text-muted); font-family: monospace; }
+        .topo-panel-pow { font-size: 14px; font-weight: 800; color: var(--solar-amber); }
     </style>
 </head>
 <body>
@@ -151,7 +240,7 @@
             <div class="status-container">
                 
         <div class="tower-icon offline" title="Usina em Repouso / Sem Geração">
-            <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" width="38" height="38">
+            <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" width="34" height="34">
                 <path d="M32 4L18 60M32 4L46 60M23 24H41M19 40H45M26 12L38 12M12 60H52" stroke="#64748b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
                 <circle cx="32" cy="4" r="3" fill="#64748b"/>
             </svg>
@@ -159,34 +248,41 @@
         
                 <span class="status-text">Repouso / Inoperante (Sem Sol)</span>
             </div>
-            <p class="location">📍 Vargem Grande Paulista - SP | Atualizado às 26/08/2026 - 20:51</p>
+            <p class="location">📍 Vargem Grande Paulista - SP | Atualizado às 26/08/2026 - 22:04</p>
         </header>
 
+        <!-- 1. Card de Potência Instantânea -->
         <div class="card power-card-compact">
             <div class="stat-label">Potência Instantânea de Geração</div>
             <div class="power-val">0.00 <span style="font-size: 20px;">W</span></div>
             <div class="power-sub">0,0% da capacidade instalada (4500 Wp)</div>
         </div>
 
+        <!-- 2. Cards de Metas (Sem a palavra Farol, kWh na mesma linha) -->
         <div class="farois-grid">
             <div class="farol-card">
                 <div class="farol-luz" style="background-color: #10b981; color: #10b981;"></div>
                 <div class="farol-info">
-                    <span class="farol-title">Farol Meta Diária</span>
-                    <span class="farol-kwh">14,72 / 13,28 kWh</span>
-                    <span class="farol-pct" style="color: #10b981;">110,8% atingida</span>
+                    <span class="farol-title">Meta Diária</span>
+                    <div class="farol-inline">
+                        <span class="farol-kwh-line">14,72 / 13,28 kWh</span>
+                        <span class="farol-pct-tag" style="color: #10b981;">110,8%</span>
+                    </div>
                 </div>
             </div>
             <div class="farol-card">
                 <div class="farol-luz" style="background-color: #ef4444; color: #ef4444;"></div>
                 <div class="farol-info">
-                    <span class="farol-title">Farol Meta Mensal</span>
-                    <span class="farol-kwh">91,41 / 411,7 kWh</span>
-                    <span class="farol-pct" style="color: #ef4444;">22,2% atingida</span>
+                    <span class="farol-title">Meta Mensal</span>
+                    <div class="farol-inline">
+                        <span class="farol-kwh-line">91,41 / 411,7 kWh</span>
+                        <span class="farol-pct-tag" style="color: #ef4444;">22,2%</span>
+                    </div>
                 </div>
             </div>
         </div>
 
+        <!-- 3. Recorde do Mês -->
         <div class="card record-card">
             <div>
                 <div class="stat-label" style="color: #c084fc;">🏆 Recorde de Geração (Agosto/2026)</div>
@@ -196,142 +292,113 @@
             <div class="record-badge">14,72 <span style="font-size: 14px;">kWh</span></div>
         </div>
 
-        <div class="card">
-            <div class="stat-label">📅 Comparativo Diário com Linha de Tendência (Agosto/2026)</div>
-            <p style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">Produção real diária via API Hoymiles com média de tendência</p>
-            <div class="chart-box">
-                <canvas id="chartDias"></canvas>
-            </div>
-        </div>
-
-        <div class="card">
-            <div class="stat-label">⚡ Distribuição & Horários de Maior Produção</div>
-            <p style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">Potência solar média registrada ao longo do dia</p>
-            <div class="chart-box">
-                <canvas id="chartHoras"></canvas>
-            </div>
-        </div>
-
+        <!-- 4. Geração do Dia e Mês -->
         <div class="grid-cards">
             <div class="card">
                 <div class="stat-label">Geração de Hoje</div>
                 <div class="stat-val">14,72 kWh</div>
-                <div class="stat-sub">Economia: R$ 12,95</div>
+                <div class="stat-sub">Economia: R$ 12,95 | Pico: 0 W</div>
             </div>
             <div class="card">
                 <div class="stat-label">Acumulado no Mês</div>
                 <div class="stat-val">91,41 <span style="font-size: 14px;">kWh</span></div>
-                <div class="stat-sub">Economia: R$ 80,44</div>
+                <div class="stat-sub">Economia: R$ 80,44 | 3,27 HSP</div>
             </div>
         </div>
 
-        <div class="grid-3">
-            <div class="card">
-                <div class="stat-label">Total Histórico</div>
-                <div class="stat-val" style="font-size: 17px;">91,74 <span style="font-size: 11px;">kWh</span></div>
-                <div class="stat-sub" style="font-size: 11px;">R$ 80,73</div>
-            </div>
-            <div class="card">
-                <div class="stat-label">Pico do Dia</div>
-                <div class="stat-val" style="font-size: 17px;">0 <span style="font-size: 11px;">W</span></div>
-                <div style="font-size: 11px; color: var(--text-muted);">3,27 HSP</div>
-            </div>
-            <div class="card">
-                <div class="stat-label">CO₂ Evitado</div>
-                <div class="stat-val" style="font-size: 17px;">91,46 <span style="font-size: 11px;">kg</span></div>
-                <div style="font-size: 11px; color: var(--solar-green);">~5 árvores</div>
-            </div>
-        </div>
-
+        <!-- 5. Conectividade e Equipamento DTU -->
         <div class="card">
-            <div class="stat-label" style="margin-bottom: 6px;">Telemetria da Rede Elétrica & Microinversores</div>
-            <p style="font-size: 13px; margin-bottom: 10px;">
-                Tensão da Rede: <b>220,0 V</b> | Frequência: <b>60,0 Hz</b>
-            </p>
-            <p style='color: var(--text-muted); font-size: 13px;'>Microinversores sincronizados via DTU.</p>
+            <div class="stat-label">📡 Conectividade & Equipamento DTU</div>
+            <div class="dtu-grid">
+                <div class="dtu-item">
+                    <span class="dtu-item-title">Identificação da DTU</span>
+                    <span class="dtu-item-val">📟 SN: DTU-Pro</span>
+                    <span style="font-size: 11px; color: var(--text-muted);">Firmware: <b>2026-08-26 16:43:59</b></span>
+                </div>
+                <div class="dtu-item">
+                    <span class="dtu-item-title">Sinal de Comunicação</span>
+                    <span class="dtu-item-val">📶 Wi-Fi: 100% (-58 dBm)</span>
+                    <span class="dtu-item-sub">Link RF/Zigbee: 98% (Ótimo)</span>
+                </div>
+                <div class="dtu-item">
+                    <span class="dtu-item-title">Última Sincronização</span>
+                    <span class="dtu-item-val">🕒 26/08/2026 - 22:04</span>
+                    <span class="dtu-item-sub">Status: Nuvem Hoymiles OK</span>
+                </div>
+            </div>
+            <div style="font-size: 12px; color: var(--text-muted); margin-top: 10px;">
+                Tensão CA da Rede: <b>220,0 V</b> | Frequência: <b>60,0 Hz</b>
+            </div>
+        </div>
+
+        <!-- 6. MAPA ELÉTRICO DA USINA (TOPOLOGIA IGUAL À DO APP) -->
+        <div class="card">
+            <div class="stat-label">⚡ Mapa Elétrico da Usina (Topologia Solar)</div>
+            <div class="topology-container">
+                <div class="topo-node-total">
+                    <div class="topo-total-title">Total da Usina</div>
+                    <div class="topo-total-val">0.00 W</div>
+                </div>
+                <div class="topo-branch-line"></div>
+                <div class="topo-inverters-wrapper">
+                    
+        <div class="topo-inverter-col">
+            <div class="topo-inv-box">
+                <div class="topo-inv-pow">0.0 W</div>
+                <div class="topo-inv-sn">Inversor 1: 1424A384C2EA</div>
+            </div>
+            <div class="topo-panels-stack">
+        
+                <div class="topo-panel-box">
+                    <span class="topo-panel-id">📦 84C2EA-1</span>
+                    <span class="topo-panel-pow">0.0 W</span>
+                </div>
+            
+                <div class="topo-panel-box">
+                    <span class="topo-panel-id">📦 84C2EA-2</span>
+                    <span class="topo-panel-pow">0.0 W</span>
+                </div>
+            
+                <div class="topo-panel-box">
+                    <span class="topo-panel-id">📦 84C2EA-3</span>
+                    <span class="topo-panel-pow">0.0 W</span>
+                </div>
+            
+                <div class="topo-panel-box">
+                    <span class="topo-panel-id">📦 84C2EA-4</span>
+                    <span class="topo-panel-pow">0.0 W</span>
+                </div>
+            </div></div>
+        <div class="topo-inverter-col">
+            <div class="topo-inv-box">
+                <div class="topo-inv-pow">0.0 W</div>
+                <div class="topo-inv-sn">Inversor 2: 1424A3849A18</div>
+            </div>
+            <div class="topo-panels-stack">
+        
+                <div class="topo-panel-box">
+                    <span class="topo-panel-id">📦 849A18-1</span>
+                    <span class="topo-panel-pow">0.0 W</span>
+                </div>
+            
+                <div class="topo-panel-box">
+                    <span class="topo-panel-id">📦 849A18-2</span>
+                    <span class="topo-panel-pow">0.0 W</span>
+                </div>
+            
+                <div class="topo-panel-box">
+                    <span class="topo-panel-id">📦 849A18-3</span>
+                    <span class="topo-panel-pow">0.0 W</span>
+                </div>
+            
+                <div class="topo-panel-box">
+                    <span class="topo-panel-id">📦 849A18-4</span>
+                    <span class="topo-panel-pow">0.0 W</span>
+                </div>
+            </div></div>
+                </div>
+            </div>
         </div>
     </div>
-
-    <script>
-        new Chart(document.getElementById('chartDias').getContext('2d'), {
-            data: {
-                labels: ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28", "29", "30", "31"],
-                datasets: [
-                    {
-                        type: 'line',
-                        label: 'Linha de Tendência',
-                        data: [3.81, 3.97, 4.14, 3.64, 3.81, 3.97, 4.14, 3.64, 3.81, 3.97, 4.14, 3.64, 3.81, 3.97, 4.14, 3.64, 3.81, 3.97, 4.14, 3.64, 3.81, 3.97, 4.14, 3.64, 3.81, 8.87, null, null, null, null, null],
-                        borderColor: '#a855f7',
-                        borderWidth: 2.5,
-                        pointRadius: 2,
-                        tension: 0.35,
-                        fill: false
-                    },
-                    {
-                        type: 'bar',
-                        label: 'Geração Diária (kWh)',
-                        data: [3.48, 3.84, 4.21, 3.11, 3.48, 3.84, 4.21, 3.11, 3.48, 3.84, 4.21, 3.11, 3.48, 3.84, 4.21, 3.11, 3.48, 3.84, 4.21, 3.11, 3.48, 3.84, 4.21, 3.11, 3.48, 14.72, null, null, null, null, null],
-                        backgroundColor: 'rgba(245, 158, 11, 0.75)',
-                        hoverBackgroundColor: '#f59e0b',
-                        borderRadius: 5
-                    }
-                ]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { labels: { color: '#94a3b8', font: { size: 10 } } },
-                    tooltip: {
-                        callbacks: {
-                            label: function(c) {
-                                return c.dataset.label + ': ' + c.raw + ' kWh';
-                            }
-                        }
-                    }
-                },
-                scales: {
-                    x: { grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#94a3b8', font: { size: 10 } } },
-                    y: { grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#94a3b8' }, suggestedMin: 0 }
-                }
-            }
-        });
-
-        new Chart(document.getElementById('chartHoras').getContext('2d'), {
-            type: 'bar',
-            data: {
-                labels: ["06h", "07h", "08h", "09h", "10h", "11h", "12h", "13h", "14h", "15h", "16h", "17h", "18h"],
-                datasets: [{
-                    label: 'Potência Solar (W)',
-                    data: [88, 351, 1024, 1901, 2574, 2866, 2925, 2779, 2398, 1696, 936, 292, 58],
-                    backgroundColor: function(context) {
-                        const val = context.raw || 0;
-                        if (val >= 2000) return '#10b981';
-                        if (val >= 1000) return '#f59e0b';
-                        return '#38bdf8';
-                    },
-                    borderRadius: 5
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                plugins: {
-                    legend: { display: false },
-                    tooltip: {
-                        callbacks: {
-                            label: function(c) {
-                                return 'Potência Média: ' + Number(c.raw).toLocaleString('pt-BR') + ' W';
-                            }
-                        }
-                    }
-                },
-                scales: {
-                    x: { grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#94a3b8', font: { size: 10 } } },
-                    y: { grid: { color: 'rgba(255, 255, 255, 0.05)' }, ticks: { color: '#94a3b8' }, suggestedMin: 0 }
-                }
-            }
-        });
-    </script>
 </body>
 </html>
