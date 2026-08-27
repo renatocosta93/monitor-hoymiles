@@ -26,7 +26,7 @@ LONGITUDE = -47.0258
 FUSO_BR = timezone(timedelta(hours=-3))
 
 # ==========================================
-# FUNÇÕES AUXILIARES DE FORMATAÇÃO E CÁLCULO
+# FUNÇÕES AUXILIARES
 # ==========================================
 def fmt_br(valor, dec=2):
     try:
@@ -124,7 +124,7 @@ def enviar_telegram(mensagem):
         print(f"Erro envio Telegram: {e}")
 
 # ==========================================
-# GERAÇÃO DO PAINEL WEB HTML
+# PAINEL WEB HTML
 # ==========================================
 def gerar_painel_html(dados):
     if dados["is_online"]:
@@ -213,7 +213,6 @@ def gerar_painel_html(dados):
             box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
         }}
 
-        /* Card Compacto de Potência */
         .power-card-compact {{
             text-align: center;
             background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
@@ -231,7 +230,6 @@ def gerar_painel_html(dados):
         }}
         .power-sub {{ color: var(--text-muted); font-size: 13px; }}
 
-        /* Faróis de Meta Inline */
         .farois-grid {{
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -265,7 +263,6 @@ def gerar_painel_html(dados):
         .farol-kwh-line {{ font-size: 15px; font-weight: 800; color: var(--text-main); }}
         .farol-pct-tag {{ font-size: 12px; font-weight: 700; }}
 
-        /* Recorde */
         .record-card {{
             background: linear-gradient(135deg, #1e293b 0%, #1e1b4b 100%);
             border: 1px solid rgba(168, 85, 247, 0.4);
@@ -286,7 +283,6 @@ def gerar_painel_html(dados):
         .stat-val {{ font-size: 20px; font-weight: 800; margin: 3px 0; color: var(--text-main); }}
         .stat-sub {{ font-size: 12px; color: var(--solar-green); font-weight: 600; }}
 
-        /* DTU & Conectividade Cards */
         .dtu-grid {{
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
@@ -306,9 +302,6 @@ def gerar_painel_html(dados):
         .dtu-item-val {{ font-size: 14px; font-weight: 700; color: var(--text-main); display: flex; align-items: center; gap: 6px; }}
         .dtu-item-sub {{ font-size: 12px; color: var(--solar-green); font-weight: 600; }}
 
-        /* ==========================================
-           MAPA ELÉTRICO / TOPOLOGIA DA USINA
-           ========================================== */
         .topology-container {{
             margin-top: 14px;
             display: flex;
@@ -324,7 +317,6 @@ def gerar_painel_html(dados):
             text-align: center;
             box-shadow: 0 4px 14px rgba(139, 92, 246, 0.4);
             min-width: 150px;
-            position: relative;
         }}
         .topo-total-title {{ font-size: 11px; text-transform: uppercase; color: #ede9fe; font-weight: 700; }}
         .topo-total-val {{ font-size: 20px; font-weight: 900; color: #ffffff; }}
@@ -339,7 +331,6 @@ def gerar_painel_html(dados):
             grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
             gap: 16px;
             width: 100%;
-            position: relative;
         }}
         .topo-inverter-col {{
             display: flex;
@@ -394,14 +385,12 @@ def gerar_painel_html(dados):
             <p class="location">📍 Vargem Grande Paulista - SP | Atualizado às {dados['hora_atual']}</p>
         </header>
 
-        <!-- 1. Card de Potência Instantânea -->
         <div class="card power-card-compact">
             <div class="stat-label">Potência Instantânea de Geração</div>
             <div class="power-val">{dados['real_power']} <span style="font-size: 20px;">W</span></div>
             <div class="power-sub">{dados['eficiencia']}% da capacidade instalada ({int(POTENCIA_INSTALADA_WP)} Wp)</div>
         </div>
 
-        <!-- 2. Cards de Metas (Sem a palavra Farol, kWh na mesma linha) -->
         <div class="farois-grid">
             <div class="farol-card">
                 <div class="farol-luz" style="background-color: {dados['cor_farol_dia']}; color: {dados['cor_farol_dia']};"></div>
@@ -425,7 +414,6 @@ def gerar_painel_html(dados):
             </div>
         </div>
 
-        <!-- 3. Recorde do Mês -->
         <div class="card record-card">
             <div>
                 <div class="stat-label" style="color: #c084fc;">🏆 Recorde de Geração ({dados['mes_nome']})</div>
@@ -435,7 +423,6 @@ def gerar_painel_html(dados):
             <div class="record-badge">{dados['recorde_kwh']} <span style="font-size: 14px;">kWh</span></div>
         </div>
 
-        <!-- 4. Geração do Dia e Mês -->
         <div class="grid-cards">
             <div class="card">
                 <div class="stat-label">Geração de Hoje</div>
@@ -449,7 +436,6 @@ def gerar_painel_html(dados):
             </div>
         </div>
 
-        <!-- 5. Conectividade e Equipamento DTU -->
         <div class="card">
             <div class="stat-label">📡 Conectividade & Equipamento DTU</div>
             <div class="dtu-grid">
@@ -474,7 +460,6 @@ def gerar_painel_html(dados):
             </div>
         </div>
 
-        <!-- 6. MAPA ELÉTRICO DA USINA (TOPOLOGIA IGUAL À DO APP) -->
         <div class="card">
             <div class="stat-label">⚡ Mapa Elétrico da Usina (Topologia Solar)</div>
             <div class="topology-container">
@@ -527,7 +512,7 @@ def main():
         estado["fechamento_enviado"] = False
 
     # ==========================================
-    # 2. COLETA DE DADOS NA HOYMILES (API + DOM)
+    # 2. COLETA DE DADOS NA HOYMILES
     # ==========================================
     captured_data = []
     auth_headers = {}
@@ -610,7 +595,6 @@ def main():
         finally:
             browser.close()
 
-    # Processamento de Dados
     real_power_val = 0.0
     today_eq_raw = None
     month_eq_raw = None
@@ -653,7 +637,6 @@ def main():
                 try: grid_v_num = float(str(gv).replace(",", "."))
                 except: pass
 
-            # Dados DTU
             dsn = extrair_campo(obj, ["dtu_sn", "dtuSn"])
             if dsn and len(str(dsn)) >= 6: dtu_sn = str(dsn)
             
@@ -663,7 +646,6 @@ def main():
             d_sync = extrair_campo(obj, ["last_upload_time", "sync_time", "time", "update_time"])
             if d_sync and len(str(d_sync)) > 8: dtu_last_sync = str(d_sync)
 
-            # Microinversores
             sn = extrair_campo(obj, ["sn", "mi_sn", "inverter_sn"])
             if sn and str(sn).strip().isalnum() and len(str(sn).strip()) >= 8:
                 inversores_dict[str(sn)] = obj
@@ -689,7 +671,6 @@ def main():
     month_kwh = converter_energia(month_eq_raw)
     total_kwh = converter_energia(total_eq_raw)
 
-    # Histórico e Recorde
     historico = estado.get("historico_dias", {})
     if today_kwh > 0:
         historico[data_str] = round(today_kwh, 2)
@@ -730,13 +711,10 @@ def main():
 
     today_display = f"{int(round(today_kwh * 1000))} Wh ({fmt_br(today_kwh, 2)} kWh)" if (today_kwh < 1.0 and today_kwh > 0) else f"{fmt_br(today_kwh, 2)} kWh"
 
-    # ==========================================
-    # 3. GERAÇÃO DO MAPA ELÉTRICO (TOPOLOGIA)
-    # ==========================================
+    # Topologia Elétrica
     mapa_html = ""
     inversores_msg = []
     
-    # Se a API retornou microinversores, usamos eles; senão, montamos a topologia dos 2 microinversores de 4 entradas
     if not inversores_dict:
         inversores_dict = {
             "1424A384C2EA": {"real_power": round(real_power_val * 0.52, 1), "pv1": round(real_power_val * 0.25, 1), "pv2": round(real_power_val * 0.15, 1), "pv3": 0.0, "pv4": round(real_power_val * 0.12, 1)},
@@ -812,9 +790,11 @@ def main():
     })
 
     # ==========================================
-    # 4. DISPAROS TELEGRAM
+    # 3. DISPAROS TELEGRAM
     # ==========================================
-    if (5 <= hora_int <= 11) and not estado.get("dia_ativo", False):
+
+    # A) ATIVAÇÃO MATINAL — Dispara pontualmente às 06h00 (ou na 1ª execução a partir das 06h00)
+    if (6 <= hora_int <= 11) and not estado.get("dia_ativo", False):
         estado["dia_ativo"] = True
         estado["fechamento_enviado"] = False
         salvar_estado(estado)
@@ -826,13 +806,14 @@ def main():
         msg_manha += f"🎯 *META DE GERAÇÃO PARA HOJE*\n"
         msg_manha += f"• *Meta Estimada:* `{fmt_br(meta_dia, 2)} kWh` (~R$ {fmt_br(meta_dia*TARIFA_KWH, 2)})\n"
         msg_manha += f"• *Capacidade:* `{fmt_br(POTENCIA_INSTALADA_WP/1000.0, 1)} kWp`\n"
-        msg_manha += f"• *Status:* 🟢 Equipamentos ligados e operando\n\n"
+        msg_manha += f"• *Status:* 🟢 Monitoramento matinal iniciado\n\n"
         msg_manha += f"🌐 *Painel ao vivo:* {PAINEL_WEB_URL}"
         enviar_telegram(msg_manha)
         return
 
+    # B) FECHAMENTO NOTURNO (Após 17h00 quando a geração cessa)
     if hora_int >= 17 and not estado.get("fechamento_enviado", False):
-        deve_fechar = (real_power_val <= 15 and today_kwh > 0.05) or (hora_int >= 18 and (minuto_int >= 30 or hora_int >= 19))
+        deve_fechar = (real_power_val <= 10 and today_kwh > 0.05) or (hora_int >= 18 and (minuto_int >= 30 or hora_int >= 19))
         
         if deve_fechar:
             estado["dia_ativo"] = False
@@ -855,7 +836,8 @@ def main():
             enviar_telegram(msg_noite)
             return
 
-    if (estado.get("dia_ativo", False) or hora_int < 18) and not estado.get("fechamento_enviado", False) and (real_power_val > 0 or today_kwh > 0):
+    # C) NOTIFICAÇÃO PERIÓDICA DE 30 MINUTOS (Liberada após a ativação matinal)
+    if estado.get("dia_ativo", False) and not estado.get("fechamento_enviado", False):
         status_icon = "🟢 Online (Gerando)" if real_power_val > 10 else "🟡 Baixa Irradiação"
         pico_str = f" | *Pico:* `{fmt_br(peak_power or real_power_val, 0)} W`"
 
