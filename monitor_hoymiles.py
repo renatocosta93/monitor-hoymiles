@@ -18,7 +18,7 @@ TELEGRAM_CHAT_ID = "1020154663"
 PAINEL_WEB_URL = "https://renatocosta93.github.io/monitor-hoymiles/"
 
 POTENCIA_INSTALADA_WP = 4500.0  # 4.5 kWp
-TARIFA_KWH = 0.88               # R$/kWh
+TARIFA_KWH = 1.02             # R$/kWh
 
 LATITUDE = -23.6028
 LONGITUDE = -47.0258
@@ -145,7 +145,7 @@ def enviar_telegram(mensagem_html):
 def gerar_painel_html(dados):
     if dados["is_online"]:
         icone_usina = """
-        <div class="tower-icon online" title="Usina Operando em Plena Geração">
+        <div class="tower-icon online" title="Usina em Operação">
             <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" width="34" height="34">
                 <path d="M32 4L18 60M32 4L46 60M23 24H41M19 40H45M26 12L38 12M12 60H52" stroke="#10b981" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
                 <circle cx="32" cy="4" r="3" fill="#38bdf8"/>
@@ -393,7 +393,7 @@ def gerar_painel_html(dados):
 <body>
     <div class="container">
         <header class="header">
-            <h1 class="title">☀️ Painel Solar Hoymiles</h1>
+            <h1 class="title">☀️ Usina Solar Mendes</h1>
             <div class="status-container">
                 {icone_usina}
                 <span class="status-text">{dados['status_str']}</span>
@@ -432,7 +432,7 @@ def gerar_painel_html(dados):
 
         <div class="card record-card">
             <div>
-                <div class="stat-label" style="color: #c084fc;">🏆 Recorde de Geração ({dados['mes_nome']})</div>
+                <div class="stat-label" style="color: #c084fc;">🏆 Top Dia - Geração({dados['mes_nome']})</div>
                 <div style="font-size: 14px; font-weight: 700; color: var(--text-main); margin-top: 2px;">{dados['recorde_dia_texto']}</div>
                 <div style="font-size: 12px; color: var(--text-muted);">Economia gerada: <b>R$ {dados['recorde_economia']}</b></div>
             </div>
@@ -477,7 +477,7 @@ def gerar_painel_html(dados):
         </div>
 
         <div class="card">
-            <div class="stat-label">⚡ Mapa Elétrico da Usina (Topologia Solar)</div>
+            <div class="stat-label">⚡ Topologia Usina Solar Mendes</div>
             <div class="topology-container">
                 <div class="topo-node-total">
                     <div class="topo-total-title">Total da Usina</div>
@@ -863,7 +863,7 @@ def main():
         pico_str = f" | <b>Pico:</b> <code>{fmt_br(peak_power or real_power_val, 0)} W</code>"
 
         msg_padrao = (
-            f"☀️ <b>PAINEL SOLAR HOYMILES</b> ☀️\n"
+            f"☀️ <b>USINA SOLAR MENDES</b> ☀️\n"
             f"📅 <code>{hora_str}</code> | {status_icon}\n\n"
             f"📊 <b>GERAÇÃO & RENDIMENTO</b>\n"
             f"• <b>Potência Atual:</b> <code>{fmt_decimal(real_power_val, 2)} W</code> ({fmt_br(eficiencia, 1)}% da usina)\n"
