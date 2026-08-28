@@ -1,9 +1,9 @@
 {
   "dia_ativo": true,
   "fechamento_enviado": false,
-  "data_atual": "2026-08-27",
-  "meta_kwh": 21.03,
-  "previsao_desc": "Sol entre nuvens (14.6°C a 25.1°C, 5.7 HSP)",
+  "data_atual": "2026-08-28",
+  "meta_kwh": 19.93,
+  "previsao_desc": "Nublado (14.3°C a 28.0°C, 5.4 HSP)",
   "ultimo_alerta": "",
   "historico_dias": {
     "2026-08-26": 14.72,
@@ -32,8 +32,9 @@
     "2026-08-23": 4.21,
     "2026-08-24": 3.11,
     "2026-08-25": 3.48,
-    "2026-08-27": 24.09
+    "2026-08-27": 24.09,
+    "2026-08-28": 0.0
   },
-  "data_bom_dia_enviado": "2026-08-27",
+  "data_bom_dia_enviado": "2026-08-28",
   "data_fechamento_enviado": "2026-08-27"
 }
