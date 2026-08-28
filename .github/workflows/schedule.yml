@@ -1,9 +1,6 @@
 name: Monitor Hoymiles 30min
 
 on:
-  schedule:
-    # Executa a cada 30 min (minutos :05 e :35) das 05h às 20h30 BRT (08h às 23h30 UTC)
-    - cron: '5,35 8-23 * * *'
   workflow_dispatch:
 
 permissions:
