@@ -516,6 +516,7 @@ def main():
     hora_int = agora_br.hour
     minuto_int = agora_br.minute
     data_str = agora_br.strftime("%Y-%m-%d")
+    ano_mes_str = agora_br.strftime("%Y-%m")
     ano_atual = agora_br.year
     mes_atual = agora_br.month
     dia_atual = agora_br.day
@@ -537,15 +538,14 @@ def main():
         estado["previsao_desc"] = f"{prev['desc']} ({prev['t_min']}°C a {prev['t_max']}°C, {prev['hsp']} HSP)"
         salvar_estado(estado)
 
-    # Limpeza de segurança: Remove qualquer dado residual anterior ao início oficial (20/08/2026)
+    # Limpeza de segurança: Remove datas anteriores a 20/08/2026
     historico = estado.get("historico_dias", {})
-    datas_para_remover = [d for d in list(historico.keys()) if d < DATA_INICIO_OPERACAO]
-    for d_old in datas_para_remover:
+    for d_old in [d for d in list(historico.keys()) if d < DATA_INICIO_OPERACAO]:
         del historico[d_old]
     estado["historico_dias"] = historico
 
     # ==========================================
-    # 2. COLETA DE DADOS NA HOYMILES
+    # 2. COLETA DE DADOS NA HOYMILES (API + DOM + HISTÓRICO MENSAL)
     # ==========================================
     captured_data = []
     auth_headers = {}
@@ -596,31 +596,40 @@ def main():
             js_dom = "() => ({ all_text: document.body.innerText || '' })"
             scraped_dom = page.evaluate(js_dom)
 
-            js_apis = """
-            async () => {
+            # Consulta ativa das APIs da Hoymiles incluindo Histórico Mensal
+            js_apis = f"""
+            async () => {{
                 let token = localStorage.getItem('token') || localStorage.getItem('access_token') || '';
-                let sid = localStorage.getItem('sid') || '';
+                let sid = localStorage.getItem('sid') || '{station_id or ""}';
                 let results = [];
-                let headers = {'Content-Type': 'application/json', 'Authorization': token, 'token': token};
+                let headers = {{'Content-Type': 'application/json', 'Authorization': token, 'token': token}};
                 
-                try {
-                    let r1 = await fetch('/pvm-api/station/select_station', {method: 'POST', headers: headers, body: JSON.stringify({page: 1, page_size: 10})});
+                try {{
+                    let r1 = await fetch('/pvm-api/station/select_station', {{method: 'POST', headers: headers, body: JSON.stringify({{page: 1, page_size: 10}})}});
                     results.push(await r1.json());
-                } catch(e) {}
-                try {
-                    let r2 = await fetch('/pvm-api/client/find_station_detail', {method: 'POST', headers: headers, body: JSON.stringify({sid: sid})});
+                }} catch(e) {{}}
+                try {{
+                    let r2 = await fetch('/pvm-api/client/find_station_detail', {{method: 'POST', headers: headers, body: JSON.stringify({{sid: sid}})}});
                     results.push(await r2.json());
-                } catch(e) {}
-                try {
-                    let r3 = await fetch('/pvm-api/dev/select_mi', {method: 'POST', headers: headers, body: JSON.stringify({sid: sid, page: 1, page_size: 20})});
+                }} catch(e) {{}}
+                try {{
+                    let r3 = await fetch('/pvm-api/data/find_station_energy_by_date', {{method: 'POST', headers: headers, body: JSON.stringify({{sid: sid, date: '{ano_mes_str}', type: 2}})}});
                     results.push(await r3.json());
-                } catch(e) {}
-                try {
-                    let r4 = await fetch('/pvm-api/dev/select_dtu', {method: 'POST', headers: headers, body: JSON.stringify({sid: sid, page: 1, page_size: 10})});
+                }} catch(e) {{}}
+                try {{
+                    let r4 = await fetch('/pvm-api/station/select_station_energy_by_month', {{method: 'POST', headers: headers, body: JSON.stringify({{sid: sid, time: '{ano_mes_str}'}})}});
                     results.push(await r4.json());
-                } catch(e) {}
+                }} catch(e) {{}}
+                try {{
+                    let r5 = await fetch('/pvm-api/dev/select_mi', {{method: 'POST', headers: headers, body: JSON.stringify({{sid: sid, page: 1, page_size: 20}})}});
+                    results.push(await r5.json());
+                }} catch(e) {{}}
+                try {{
+                    let r6 = await fetch('/pvm-api/dev/select_dtu', {{method: 'POST', headers: headers, body: JSON.stringify({{sid: sid, page: 1, page_size: 10}})}});
+                    results.push(await r6.json());
+                }} catch(e) {{}}
                 return results;
-            }
+            }}
             """
             api_res = page.evaluate(js_apis)
             if api_res and isinstance(api_res, list):
@@ -686,6 +695,16 @@ def main():
             if sn and str(sn).strip().isalnum() and len(str(sn).strip()) >= 8:
                 inversores_dict[str(sn)] = obj
 
+            # Captura de itens do calendário histórico diário retornado pela API
+            d_item = extrair_campo(obj, ["time", "date", "day", "record_date"])
+            e_item = extrair_campo(obj, ["eq", "energy", "val", "today_eq", "generation"])
+            if d_item and e_item is not None:
+                d_str = str(d_item).strip()[:10]
+                if re.match(r'^\d{4}-\d{2}-\d{2}$', d_str) and d_str >= DATA_INICIO_OPERACAO:
+                    val_kwh = converter_energia(e_item)
+                    if val_kwh > 0:
+                        historico[d_str] = round(val_kwh, 2)
+
             for v in obj.values(): varrer(v)
         elif isinstance(obj, list):
             for i in obj: varrer(i)
@@ -707,14 +726,28 @@ def main():
     month_kwh = converter_energia(month_eq_raw)
     total_kwh = converter_energia(total_eq_raw)
 
-    print(f"📊 Dados Obtidos: Potência={real_power_val}W | Hoje={today_kwh}kWh | Mês={month_kwh}kWh")
+    print(f"📊 Dados Brutos: Potência={real_power_val}W | Hoje={today_kwh}kWh | Mês={month_kwh}kWh")
 
-    # Registro no Histórico somente a partir de 20/08/2026
+    # Atualiza o dia de hoje no histórico
     if data_str >= DATA_INICIO_OPERACAO:
         if today_kwh > 0:
             historico[data_str] = round(today_kwh, 2)
-        elif data_str not in historico:
-            historico[data_str] = 0.0
+
+    # Reconciliação inteligente: Se houver dias faltantes no histórico local mas o total do mês for oficial
+    soma_atual_mes = sum(v for k, v in historico.items() if k.startswith(ano_mes_str) and k >= DATA_INICIO_OPERACAO)
+    if month_kwh > soma_atual_mes and month_kwh > 0:
+        dias_ativos = []
+        dia_inicio_op = int(DATA_INICIO_OPERACAO.split("-")[2])
+        for d in range(dia_inicio_op, dia_atual + 1):
+            chave = f"{ano_atual}-{mes_atual:02d}-{d:02d}"
+            if chave not in historico or historico[chave] == 0:
+                dias_ativos.append(chave)
+        
+        diff = round(month_kwh - soma_atual_mes, 2)
+        if dias_ativos and diff > 0:
+            parcela = round(diff / len(dias_ativos), 2)
+            for ch in dias_ativos:
+                historico[ch] = parcela
 
     estado["historico_dias"] = historico
     salvar_estado(estado)
@@ -878,7 +911,7 @@ def main():
         )
         enviar_telegram(msg_noite)
 
-        # 2. Mensagem Separada: Consolidado Semanal + Histórico de Meses Concluídos
+        # 2. Mensagem Separada: Consolidado Semanal com Apuração Real
         semanas_config = [
             (1, 1, 7),
             (2, 8, 14),
@@ -896,7 +929,7 @@ def main():
         for num_s, d_ini, d_fim in semanas_config:
             tot_sem = 0.0
             
-            # Se for o primeiro mês de operação e a semana for anterior ao dia de início
+            # Semanas 1 e 2 de Agosto (Anteriores a 20/08)
             if ano_atual == ano_inicio_op and mes_atual == mes_inicio_op and d_fim < dia_inicio_op:
                 tag_status = "<i>(Pré-operação / Inativa)</i>"
                 tot_sem = 0.0
@@ -922,18 +955,19 @@ def main():
 
         corpo_semanas = "\n".join(linhas_semanas)
 
-        # Cálculo do Subtotal do Mês Atual
+        # Subtotal do Mês Atual
         kwh_mes_atual = sum(v for k, v in historico.items() if k.startswith(f"{ano_atual}-{mes_atual:02d}") and k >= DATA_INICIO_OPERACAO)
+        if month_kwh > kwh_mes_atual:
+            kwh_mes_atual = month_kwh
         econ_mes_atual = kwh_mes_atual * TARIFA_KWH
 
-        # Agrupamento e Apuração de Meses Anteriores Concluídos
+        # Meses Anteriores Concluídos
         meses_historico = {}
         for data_k, val_kwh in historico.items():
             if data_k >= DATA_INICIO_OPERACAO:
                 try:
                     p = data_k.split("-")
-                    a_k, m_k = int(p[0]), int(p[1])
-                    chave_m = (a_k, m_k)
+                    chave_m = (int(p[0]), int(p[1]))
                     meses_historico[chave_m] = meses_historico.get(chave_m, 0.0) + float(val_kwh)
                 except Exception:
                     pass
@@ -957,8 +991,10 @@ def main():
                 + "\n".join(linhas_meses_fechados) + "\n\n"
             )
 
-        # Cálculo do Total Vitalício Acumulado da Usina
+        # Total Geral Acumulado Vitalício
         total_historico_kwh = sum(v for k, v in historico.items() if k >= DATA_INICIO_OPERACAO)
+        if kwh_mes_atual > total_historico_kwh:
+            total_historico_kwh = kwh_mes_atual
         total_historico_econ = total_historico_kwh * TARIFA_KWH
 
         msg_semanal = (
@@ -975,10 +1011,10 @@ def main():
         )
         enviar_telegram(msg_semanal)
 
-        # 3. Limpeza Automática: Apaga as notificações diurnas intermediárias
+        # 3. Limpeza Automática: Apaga as notificações intermediárias do dia
         mensagens_para_apagar = estado.get("mensagens_do_dia", [])
         if mensagens_para_apagar:
-            print(f"🧹 Limpando {len(mensagens_para_apagar)} notificações diurnas do chat...")
+            print(f"🧹 Limpando {len(mensagens_para_apagar)} notificações diurnas...")
             for mid in mensagens_para_apagar:
                 apagar_mensagem_telegram(mid)
 
