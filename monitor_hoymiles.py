@@ -17,8 +17,9 @@ TELEGRAM_CHAT_ID = "1020154663"
 
 PAINEL_WEB_URL = "https://renatocosta93.github.io/monitor-hoymiles/"
 
-POTENCIA_INSTALADA_WP = 4500.0  # 4.5 kWp
-TARIFA_KWH = 0.88               # R$/kWh
+POTENCIA_INSTALADA_WP = 4500.0       # 4.5 kWp
+TARIFA_KWH = 1.02                   # R$/kWh
+DATA_INICIO_OPERACAO = "2026-08-20"  # Início oficial da usina
 
 LATITUDE = -23.6028
 LONGITUDE = -47.0258
@@ -536,6 +537,13 @@ def main():
         estado["previsao_desc"] = f"{prev['desc']} ({prev['t_min']}°C a {prev['t_max']}°C, {prev['hsp']} HSP)"
         salvar_estado(estado)
 
+    # Limpeza de segurança: Remove qualquer dado residual anterior ao início oficial (20/08/2026)
+    historico = estado.get("historico_dias", {})
+    datas_para_remover = [d for d in list(historico.keys()) if d < DATA_INICIO_OPERACAO]
+    for d_old in datas_para_remover:
+        del historico[d_old]
+    estado["historico_dias"] = historico
+
     # ==========================================
     # 2. COLETA DE DADOS NA HOYMILES
     # ==========================================
@@ -701,12 +709,12 @@ def main():
 
     print(f"📊 Dados Obtidos: Potência={real_power_val}W | Hoje={today_kwh}kWh | Mês={month_kwh}kWh")
 
-    # Histórico diário
-    historico = estado.get("historico_dias", {})
-    if today_kwh > 0:
-        historico[data_str] = round(today_kwh, 2)
-    elif data_str not in historico:
-        historico[data_str] = 0.0
+    # Registro no Histórico somente a partir de 20/08/2026
+    if data_str >= DATA_INICIO_OPERACAO:
+        if today_kwh > 0:
+            historico[data_str] = round(today_kwh, 2)
+        elif data_str not in historico:
+            historico[data_str] = 0.0
 
     estado["historico_dias"] = historico
     salvar_estado(estado)
@@ -717,7 +725,7 @@ def main():
 
     for d in range(1, dias_no_mes + 1):
         d_fmt = f"{ano_atual}-{mes_atual:02d}-{d:02d}"
-        if d <= dia_atual:
+        if DATA_INICIO_OPERACAO <= d_fmt <= data_str:
             val = historico.get(d_fmt, 0.0)
             if val >= recorde_kwh and val > 0:
                 recorde_kwh = val
@@ -844,7 +852,7 @@ def main():
             estado.setdefault("mensagens_do_dia", []).append(mid)
         salvar_estado(estado)
 
-    # B) FECHAMENTO NOTURNO + CONSOLIDADO SEMANAL + LIMPEZA (Após 18h30)
+    # B) FECHAMENTO NOTURNO + CONSOLIDADO HISTÓRICO + LIMPEZA (Após 18h30)
     if (hora_int >= 18 and minuto_int >= 30) or hora_int >= 19:
         estado["data_fechamento_enviado"] = data_str
         salvar_estado(estado)
@@ -870,7 +878,7 @@ def main():
         )
         enviar_telegram(msg_noite)
 
-        # 2. Mensagem Separada: Consolidado Semanal do Mês
+        # 2. Mensagem Separada: Consolidado Semanal + Histórico de Meses Concluídos
         semanas_config = [
             (1, 1, 7),
             (2, 8, 14),
@@ -880,19 +888,30 @@ def main():
         if dias_no_mes > 28:
             semanas_config.append((5, 29, dias_no_mes))
 
+        dia_inicio_op = int(DATA_INICIO_OPERACAO.split("-")[2])
+        ano_inicio_op = int(DATA_INICIO_OPERACAO.split("-")[0])
+        mes_inicio_op = int(DATA_INICIO_OPERACAO.split("-")[1])
         linhas_semanas = []
+
         for num_s, d_ini, d_fim in semanas_config:
             tot_sem = 0.0
-            for d_num in range(d_ini, d_fim + 1):
-                d_chave = f"{ano_atual}-{mes_atual:02d}-{d_num:02d}"
-                tot_sem += historico.get(d_chave, 0.0)
-
-            if dia_atual < d_ini:
-                tag_status = "<i>(aguardando)</i>"
-            elif d_ini <= dia_atual <= d_fim:
-                tag_status = "<i>(em andamento)</i>"
+            
+            # Se for o primeiro mês de operação e a semana for anterior ao dia de início
+            if ano_atual == ano_inicio_op and mes_atual == mes_inicio_op and d_fim < dia_inicio_op:
+                tag_status = "<i>(Pré-operação / Inativa)</i>"
+                tot_sem = 0.0
             else:
-                tag_status = ""
+                for d_num in range(d_ini, d_fim + 1):
+                    d_chave = f"{ano_atual}-{mes_atual:02d}-{d_num:02d}"
+                    if d_chave >= DATA_INICIO_OPERACAO:
+                        tot_sem += historico.get(d_chave, 0.0)
+
+                if dia_atual < d_ini:
+                    tag_status = "<i>(aguardando)</i>"
+                elif d_ini <= dia_atual <= d_fim:
+                    tag_status = "<i>(em andamento)</i>"
+                else:
+                    tag_status = ""
 
             econ_sem = tot_sem * TARIFA_KWH
             tag_str = f" {tag_status}" if tag_status else ""
@@ -902,22 +921,64 @@ def main():
             )
 
         corpo_semanas = "\n".join(linhas_semanas)
+
+        # Cálculo do Subtotal do Mês Atual
+        kwh_mes_atual = sum(v for k, v in historico.items() if k.startswith(f"{ano_atual}-{mes_atual:02d}") and k >= DATA_INICIO_OPERACAO)
+        econ_mes_atual = kwh_mes_atual * TARIFA_KWH
+
+        # Agrupamento e Apuração de Meses Anteriores Concluídos
+        meses_historico = {}
+        for data_k, val_kwh in historico.items():
+            if data_k >= DATA_INICIO_OPERACAO:
+                try:
+                    p = data_k.split("-")
+                    a_k, m_k = int(p[0]), int(p[1])
+                    chave_m = (a_k, m_k)
+                    meses_historico[chave_m] = meses_historico.get(chave_m, 0.0) + float(val_kwh)
+                except Exception:
+                    pass
+
+        meses_anteriores = [k for k in sorted(meses_historico.keys()) if k < (ano_atual, mes_atual)]
+        linhas_meses_fechados = []
+        for (a_f, m_f) in meses_anteriores:
+            kwh_m = meses_historico[(a_f, m_f)]
+            econ_m = kwh_m * TARIFA_KWH
+            nome_m_f = f"{meses_pt[m_f]}/{a_f}"
+            obs_inicio = " <i>(início em 20/08)</i>" if (a_f == ano_inicio_op and m_f == mes_inicio_op) else ""
+            linhas_meses_fechados.append(
+                f"• <b>{nome_m_f}:</b> <code>{fmt_br(kwh_m, 2)} kWh</code> (~R$ {fmt_br(econ_m, 2)}){obs_inicio}"
+            )
+
+        bloco_historico_meses = ""
+        if linhas_meses_fechados:
+            bloco_historico_meses = (
+                "───────────────────────\n"
+                "📚 <b>HISTÓRICO DE MESES CONCLUÍDOS</b>\n"
+                + "\n".join(linhas_meses_fechados) + "\n\n"
+            )
+
+        # Cálculo do Total Vitalício Acumulado da Usina
+        total_historico_kwh = sum(v for k, v in historico.items() if k >= DATA_INICIO_OPERACAO)
+        total_historico_econ = total_historico_kwh * TARIFA_KWH
+
         msg_semanal = (
             f"📊 <b>CONSOLIDADO SEMANAL DE GERAÇÃO</b> ☀️\n"
             f"📅 <code>{nome_mes}</code> | Vargem Grande Paulista - SP\n\n"
-            f"🗓️ <b>PRODUÇÃO POR PERÍODO</b>\n"
-            f"{corpo_semanas}\n\n"
+            f"🗓️ <b>PRODUÇÃO DO MÊS ({meses_pt[mes_atual].upper()})</b>\n"
+            f"{corpo_semanas}\n"
+            f"• <b>Subtotal {meses_pt[mes_atual]}:</b> <code>{fmt_br(kwh_mes_atual, 2)} kWh</code> (~R$ {fmt_br(econ_mes_atual, 2)})\n\n"
+            f"{bloco_historico_meses}"
             f"───────────────────────\n"
-            f"💰 <b>TOTAL ACUMULADO NO MÊS:</b> <code>{fmt_br(month_kwh, 2)} kWh</code>\n"
-            f"💵 <b>ECONOMIA TOTAL:</b> <code>R$ {fmt_br(economia_mes, 2)}</code>\n\n"
+            f"💰 <b>TOTAL GERAL ACUMULADO (DESDE 20/08/2026):</b> <code>{fmt_br(total_historico_kwh, 2)} kWh</code>\n"
+            f"💵 <b>ECONOMIA TOTAL ACUMULADA:</b> <code>R$ {fmt_br(total_historico_econ, 2)}</code>\n\n"
             f"🌐 <b>Painel ao vivo:</b> {PAINEL_WEB_URL}"
         )
         enviar_telegram(msg_semanal)
 
-        # 3. Limpeza Automática: Apaga as mensagens intermediárias do dia
+        # 3. Limpeza Automática: Apaga as notificações diurnas intermediárias
         mensagens_para_apagar = estado.get("mensagens_do_dia", [])
         if mensagens_para_apagar:
-            print(f"🧹 Iniciando limpeza de {len(mensagens_para_apagar)} mensagens intermediárias...")
+            print(f"🧹 Limpando {len(mensagens_para_apagar)} notificações diurnas do chat...")
             for mid in mensagens_para_apagar:
                 apagar_mensagem_telegram(mid)
 
