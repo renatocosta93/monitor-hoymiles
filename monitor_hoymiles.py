@@ -26,7 +26,7 @@ LONGITUDE = -47.0258
 FUSO_BR = timezone(timedelta(hours=-3))
 
 # ==========================================
-# FUNÇÕES AUXILIARES
+# FUNÇÕES AUXILIARES DE FORMATAÇÃO E CÁLCULO
 # ==========================================
 def fmt_br(valor, dec=2):
     try:
@@ -72,6 +72,7 @@ def carregar_estado():
         "data_fechamento_enviado": "",
         "meta_kwh": 18.0,
         "previsao_desc": "Ensolarado",
+        "mensagens_do_dia": [],
         "historico_dias": {}
     }
 
@@ -114,7 +115,7 @@ def obter_previsao_tempo():
         return {"desc": "Ensolarado", "t_max": 28, "t_min": 18, "hsp": 5.0, "meta_kwh": 18.5}
 
 # ==========================================
-# DISPARADOR TELEGRAM COM MODO HTML SEGURO
+# DISPARADOR E GERENCIADOR TELEGRAM
 # ==========================================
 def enviar_telegram(mensagem_html):
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
@@ -123,21 +124,31 @@ def enviar_telegram(mensagem_html):
     try:
         res = requests.post(url, json=payload, timeout=15)
         if res.status_code == 200:
-            print("✅ Notificação entregue com sucesso no Telegram.")
-            return True
+            msg_id = res.json().get("result", {}).get("message_id")
+            print(f"✅ Notificação entregue no Telegram (ID: {msg_id}).")
+            return msg_id
         else:
             print(f"⚠️ Telegram recusou HTML (HTTP {res.status_code}): {res.text}")
             texto_puro = re.sub(r'<[^>]+>', '', mensagem_html)
             res_fb = requests.post(url, json={"chat_id": TELEGRAM_CHAT_ID, "text": texto_puro}, timeout=15)
             if res_fb.status_code == 200:
-                print("✅ Mensagem entregue via contingência de texto puro.")
-                return True
-            else:
-                print(f"❌ Falha de contingência: {res_fb.status_code} - {res_fb.text}")
-                return False
+                msg_id = res_fb.json().get("result", {}).get("message_id")
+                print(f"✅ Mensagem entregue via contingência (ID: {msg_id}).")
+                return msg_id
+            return None
     except Exception as e:
         print(f"❌ Erro de conexão com Telegram: {e}")
-        return False
+        return None
+
+def apagar_mensagem_telegram(msg_id):
+    if not msg_id:
+        return
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/deleteMessage"
+    payload = {"chat_id": TELEGRAM_CHAT_ID, "message_id": msg_id}
+    try:
+        requests.post(url, json=payload, timeout=10)
+    except Exception as e:
+        print(f"Aviso ao apagar mensagem {msg_id}: {e}")
 
 # ==========================================
 # GERAÇÃO DO PAINEL WEB HTML
@@ -145,7 +156,7 @@ def enviar_telegram(mensagem_html):
 def gerar_painel_html(dados):
     if dados["is_online"]:
         icone_usina = """
-        <div class="tower-icon online" title="Usina em Operação">
+        <div class="tower-icon online" title="Usina em Produção">
             <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" width="34" height="34">
                 <path d="M32 4L18 60M32 4L46 60M23 24H41M19 40H45M26 12L38 12M12 60H52" stroke="#10b981" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
                 <circle cx="32" cy="4" r="3" fill="#38bdf8"/>
@@ -432,7 +443,7 @@ def gerar_painel_html(dados):
 
         <div class="card record-card">
             <div>
-                <div class="stat-label" style="color: #c084fc;">🏆 Top Dia - Geração({dados['mes_nome']})</div>
+                <div class="stat-label" style="color: #c084fc;">🏆 Dia Top Geração({dados['mes_nome']})</div>
                 <div style="font-size: 14px; font-weight: 700; color: var(--text-main); margin-top: 2px;">{dados['recorde_dia_texto']}</div>
                 <div style="font-size: 12px; color: var(--text-muted);">Economia gerada: <b>R$ {dados['recorde_economia']}</b></div>
             </div>
@@ -516,9 +527,10 @@ def main():
 
     estado = carregar_estado()
     
-    # 1. Previsão diária
+    # 1. Atualização diária de previsão
     if estado.get("data_atual") != data_str:
         estado["data_atual"] = data_str
+        estado["mensagens_do_dia"] = []
         prev = obter_previsao_tempo()
         estado["meta_kwh"] = prev["meta_kwh"]
         estado["previsao_desc"] = f"{prev['desc']} ({prev['t_min']}°C a {prev['t_max']}°C, {prev['hsp']} HSP)"
@@ -689,7 +701,7 @@ def main():
 
     print(f"📊 Dados Obtidos: Potência={real_power_val}W | Hoje={today_kwh}kWh | Mês={month_kwh}kWh")
 
-    # Histórico de dias
+    # Histórico diário
     historico = estado.get("historico_dias", {})
     if today_kwh > 0:
         historico[data_str] = round(today_kwh, 2)
@@ -815,7 +827,6 @@ def main():
     # A) MENSAGEM MATINAL (BOM DIA) — 1x por dia a partir das 06h00
     if (6 <= hora_int <= 12) and (estado.get("data_bom_dia_enviado") != data_str):
         estado["data_bom_dia_enviado"] = data_str
-        salvar_estado(estado)
 
         msg_manha = (
             f"🌅 <b>USINA ATIVADA — BOM DIA!</b> ☀️\n"
@@ -828,9 +839,12 @@ def main():
             f"• <b>Status:</b> 🟢 Monitoramento matinal ativo\n\n"
             f"🌐 <b>Painel ao vivo:</b> {PAINEL_WEB_URL}"
         )
-        enviar_telegram(msg_manha)
+        mid = enviar_telegram(msg_manha)
+        if mid:
+            estado.setdefault("mensagens_do_dia", []).append(mid)
+        salvar_estado(estado)
 
-    # B) FECHAMENTO DA NOITE — 1x por dia após 18h30
+    # B) FECHAMENTO NOTURNO + CONSOLIDADO SEMANAL + LIMPEZA (Após 18h30)
     if (hora_int >= 18 and minuto_int >= 30) or hora_int >= 19:
         if estado.get("data_fechamento_enviado") != data_str:
             estado["data_fechamento_enviado"] = data_str
@@ -838,6 +852,7 @@ def main():
 
             status_meta = f"🟢 <code>{fmt_br(pct_meta_dia, 1)}% da meta atingida</code>" if pct_meta_dia >= 100 else f"🟡 <code>{fmt_br(pct_meta_dia, 1)}% da meta atingida</code>"
 
+            # 1. Mensagem de Balanço Diário
             msg_noite = (
                 f"🌙 <b>FIM DA IRRADIAÇÃO SOLAR</b> 🌙\n"
                 f"📅 <code>{hora_str}</code> | Usina em Repouso\n\n"
@@ -855,30 +870,89 @@ def main():
                 f"🌐 <b>Painel completo:</b> {PAINEL_WEB_URL}"
             )
             enviar_telegram(msg_noite)
+
+            # 2. Mensagem Separada: Consolidado Semanal do Mês
+            semanas_config = [
+                (1, 1, 7),
+                (2, 8, 14),
+                (3, 15, 21),
+                (4, 22, 28)
+            ]
+            if dias_no_mes > 28:
+                semanas_config.append((5, 29, dias_no_mes))
+
+            linhas_semanas = []
+            for num_s, d_ini, d_fim in semanas_config:
+                tot_sem = 0.0
+                for d_num in range(d_ini, d_fim + 1):
+                    d_chave = f"{ano_atual}-{mes_atual:02d}-{d_num:02d}"
+                    tot_sem += historico.get(d_chave, 0.0)
+
+                if dia_atual < d_ini:
+                    tag_status = "<i>(aguardando)</i>"
+                elif d_ini <= dia_atual <= d_fim:
+                    tag_status = "<i>(em andamento)</i>"
+                else:
+                    tag_status = ""
+
+                econ_sem = tot_sem * TARIFA_KWH
+                tag_str = f" {tag_status}" if tag_status else ""
+                linhas_semanas.append(
+                    f"• <b>Semana {num_s} ({d_ini:02d}/{mes_atual:02d} a {d_fim:02d}/{mes_atual:02d}):</b> "
+                    f"<code>{fmt_br(tot_sem, 2)} kWh</code> (~R$ {fmt_br(econ_sem, 2)}){tag_str}"
+                )
+
+            corpo_semanas = "\n".join(linhas_semanas)
+            msg_semanal = (
+                f"📊 <b>CONSOLIDADO SEMANAL DE GERAÇÃO</b> ☀️\n"
+                f"📅 <code>{nome_mes}</code> | Vargem Grande Paulista - SP\n\n"
+                f"🗓️ <b>PRODUÇÃO POR PERÍODO</b>\n"
+                f"{corpo_semanas}\n\n"
+                f"───────────────────────\n"
+                f"💰 <b>TOTAL ACUMULADO NO MÊS:</b> <code>{fmt_br(month_kwh, 2)} kWh</code>\n"
+                f"💵 <b>ECONOMIA TOTAL:</b> <code>R$ {fmt_br(economia_mes, 2)}</code>\n\n"
+                f"🌐 <b>Painel ao vivo:</b> {PAINEL_WEB_URL}"
+            )
+            enviar_telegram(msg_semanal)
+
+            # 3. Limpeza Automática: Apaga as mensagens intermediárias do dia
+            mensagens_para_apagar = estado.get("mensagens_do_dia", [])
+            print(f"🧹 Iniciando limpeza de {len(mensagens_para_apagar)} mensagens intermediárias do dia...")
+            for mid in mensagens_para_apagar:
+                apagar_mensagem_telegram(mid)
+
+            estado["mensagens_do_dia"] = []
+            salvar_estado(estado)
             return
 
     # C) NOTIFICAÇÃO PERIÓDICA DE 30 MINUTOS (06h00 às 18h30)
     if 6 <= hora_int <= 18:
+        dados_validos = (today_kwh > 0) or (real_power_val > 0) or bool(inversores_dict)
+
+        if not dados_validos:
+            print("⚠️ Leitura vazia ou indisponível neste ciclo. Envio ignorado para evitar dados zerados.")
+            return
+
         status_icon = "🟢 Online (Gerando)" if real_power_val > 10 else "🟡 Baixa Irradiação / Início"
         pico_str = f" | <b>Pico:</b> <code>{fmt_br(peak_power or real_power_val, 0)} W</code>"
 
         msg_padrao = (
-            f"☀️ <b>USINA SOLAR MENDES</b> ☀️\n"
+            f"☀️ <b>Usina Solar Mendes</b> ☀️\n"
             f"📅 <code>{hora_str}</code> | {status_icon}\n\n"
             f"📊 <b>GERAÇÃO & RENDIMENTO</b>\n"
             f"• <b>Potência Atual:</b> <code>{fmt_decimal(real_power_val, 2)} W</code> ({fmt_br(eficiencia, 1)}% da usina)\n"
             f"• <b>Hoje:</b> <code>{today_display}</code>{pico_str}\n"
-            f"• <b>Rendimento Diário (HSP):</b> <code>{fmt_br(hsp, 2)} h</code>\n"
-            f"• <b>Mês Atual:</b> <code>{fmt_br(month_kwh, 2)} kWh</code>\n\n"
+            f"• <b>Rendimento Diário (HSP):</b> <code>{fmt_br(hsp, 2)} h`\n"
+            f"• <b>Mês Atual:</b> <code>{fmt_br(month_kwh, 2)} kWh`\n\n"
             f"💰 <b>ECONOMIA ESTIMADA</b>\n"
-            f"• <b>Hoje:</b> <code>R$ {fmt_br(economia_dia, 2)}</code>\n"
-            f"• <b>Mês Atual:</b> <code>R$ {fmt_br(economia_mes, 2)}</code>\n\n"
+            f"• <b>Hoje:</b> <code>R$ {fmt_br(economia_dia, 2)}`\n"
+            f"• <b>Mês Atual:</b> <code>R$ {fmt_br(economia_mes, 2)}`\n\n"
         )
 
         if grid_v_num > 0:
             msg_padrao += (
                 f"⚡ <b>REDE ELÉTRICA (CA)</b>\n"
-                f"• <b>Tensão:</b> <code>{fmt_br(grid_v_num, 1)} V</code> | <b>Frequência:</b> <code>{fmt_br(grid_f_num, 1)} Hz</code>\n\n"
+                f"• <b>Tensão:</b> <code>{fmt_br(grid_v_num, 1)} V` | <b>Frequência:</b> <code>{fmt_br(grid_f_num, 1)} Hz`\n\n"
             )
 
         if inversores_msg:
@@ -889,7 +963,10 @@ def main():
 
         msg_padrao += f"🌐 <b>Painel Web:</b> {PAINEL_WEB_URL}"
 
-        enviar_telegram(msg_padrao)
+        mid = enviar_telegram(msg_padrao)
+        if mid:
+            estado.setdefault("mensagens_do_dia", []).append(mid)
+            salvar_estado(estado)
 
     print("🏁 Ciclo de monitoramento finalizado com sucesso.")
 
