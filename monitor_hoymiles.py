@@ -18,7 +18,7 @@ TELEGRAM_CHAT_ID = "1020154663"
 PAINEL_WEB_URL = "https://renatocosta93.github.io/monitor-hoymiles/"
 
 POTENCIA_INSTALADA_WP = 4500.0  # 4.5 kWp
-TARIFA_KWH = 1.02             # R$/kWh
+TARIFA_KWH = 0.88               # R$/kWh
 
 LATITUDE = -23.6028
 LONGITUDE = -47.0258
@@ -156,7 +156,7 @@ def apagar_mensagem_telegram(msg_id):
 def gerar_painel_html(dados):
     if dados["is_online"]:
         icone_usina = """
-        <div class="tower-icon online" title="Usina em Produção">
+        <div class="tower-icon online" title="Usina Operando em Plena Geração">
             <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" width="34" height="34">
                 <path d="M32 4L18 60M32 4L46 60M23 24H41M19 40H45M26 12L38 12M12 60H52" stroke="#10b981" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
                 <circle cx="32" cy="4" r="3" fill="#38bdf8"/>
@@ -404,7 +404,7 @@ def gerar_painel_html(dados):
 <body>
     <div class="container">
         <header class="header">
-            <h1 class="title">☀️ Usina Solar Mendes</h1>
+            <h1 class="title">☀️ Painel Solar Hoymiles</h1>
             <div class="status-container">
                 {icone_usina}
                 <span class="status-text">{dados['status_str']}</span>
@@ -443,7 +443,7 @@ def gerar_painel_html(dados):
 
         <div class="card record-card">
             <div>
-                <div class="stat-label" style="color: #c084fc;">🏆 Dia Top Geração({dados['mes_nome']})</div>
+                <div class="stat-label" style="color: #c084fc;">🏆 Recorde de Geração ({dados['mes_nome']})</div>
                 <div style="font-size: 14px; font-weight: 700; color: var(--text-main); margin-top: 2px;">{dados['recorde_dia_texto']}</div>
                 <div style="font-size: 12px; color: var(--text-muted);">Economia gerada: <b>R$ {dados['recorde_economia']}</b></div>
             </div>
@@ -488,7 +488,7 @@ def gerar_painel_html(dados):
         </div>
 
         <div class="card">
-            <div class="stat-label">⚡ Topologia Usina Solar Mendes</div>
+            <div class="stat-label">⚡ Mapa Elétrico da Usina (Topologia Solar)</div>
             <div class="topology-container">
                 <div class="topo-node-total">
                     <div class="topo-total-title">Total da Usina</div>
@@ -846,84 +846,84 @@ def main():
 
     # B) FECHAMENTO NOTURNO + CONSOLIDADO SEMANAL + LIMPEZA (Após 18h30)
     if (hora_int >= 18 and minuto_int >= 30) or hora_int >= 19:
-        if estado.get("data_fechamento_enviado") != data_str:
-            estado["data_fechamento_enviado"] = data_str
-            salvar_estado(estado)
+        estado["data_fechamento_enviado"] = data_str
+        salvar_estado(estado)
 
-            status_meta = f"🟢 <code>{fmt_br(pct_meta_dia, 1)}% da meta atingida</code>" if pct_meta_dia >= 100 else f"🟡 <code>{fmt_br(pct_meta_dia, 1)}% da meta atingida</code>"
+        status_meta = f"🟢 <code>{fmt_br(pct_meta_dia, 1)}% da meta atingida</code>" if pct_meta_dia >= 100 else f"🟡 <code>{fmt_br(pct_meta_dia, 1)}% da meta atingida</code>"
 
-            # 1. Mensagem de Balanço Diário
-            msg_noite = (
-                f"🌙 <b>FIM DA IRRADIAÇÃO SOLAR</b> 🌙\n"
-                f"📅 <code>{hora_str}</code> | Usina em Repouso\n\n"
-                f"📊 <b>BALANÇO DO DIA</b>\n"
-                f"• <b>Gerado Hoje:</b> <code>{today_display}</code>\n"
-                f"• <b>Meta do Dia:</b> <code>{fmt_br(meta_dia, 2)} kWh</code> ({status_meta})\n"
+        # 1. Mensagem de Balanço Diário
+        msg_noite = (
+            f"🌙 <b>FIM DA IRRADIAÇÃO SOLAR</b> 🌙\n"
+            f"📅 <code>{hora_str}</code> | Usina em Repouso\n\n"
+            f"📊 <b>BALANÇO DO DIA</b>\n"
+            f"• <b>Gerado Hoje:</b> <code>{today_display}</code>\n"
+            f"• <b>Meta do Dia:</b> <code>{fmt_br(meta_dia, 2)} kWh</code> ({status_meta})\n"
+        )
+        if peak_power > 0:
+            msg_noite += f"• <b>Pico Máximo:</b> <code>{fmt_br(peak_power, 0)} W</code>\n"
+        msg_noite += (
+            f"• <b>Mês Atual:</b> <code>{fmt_br(month_kwh, 2)} kWh</code>\n\n"
+            f"💰 <b>FINANCEIRO</b>\n"
+            f"• <b>Economia Hoje:</b> <code>R$ {fmt_br(economia_dia, 2)}</code>\n"
+            f"• <b>Economia no Mês:</b> <code>R$ {fmt_br(economia_mes, 2)}</code>\n\n"
+            f"🌐 <b>Painel completo:</b> {PAINEL_WEB_URL}"
+        )
+        enviar_telegram(msg_noite)
+
+        # 2. Mensagem Separada: Consolidado Semanal do Mês
+        semanas_config = [
+            (1, 1, 7),
+            (2, 8, 14),
+            (3, 15, 21),
+            (4, 22, 28)
+        ]
+        if dias_no_mes > 28:
+            semanas_config.append((5, 29, dias_no_mes))
+
+        linhas_semanas = []
+        for num_s, d_ini, d_fim in semanas_config:
+            tot_sem = 0.0
+            for d_num in range(d_ini, d_fim + 1):
+                d_chave = f"{ano_atual}-{mes_atual:02d}-{d_num:02d}"
+                tot_sem += historico.get(d_chave, 0.0)
+
+            if dia_atual < d_ini:
+                tag_status = "<i>(aguardando)</i>"
+            elif d_ini <= dia_atual <= d_fim:
+                tag_status = "<i>(em andamento)</i>"
+            else:
+                tag_status = ""
+
+            econ_sem = tot_sem * TARIFA_KWH
+            tag_str = f" {tag_status}" if tag_status else ""
+            linhas_semanas.append(
+                f"• <b>Semana {num_s} ({d_ini:02d}/{mes_atual:02d} a {d_fim:02d}/{mes_atual:02d}):</b> "
+                f"<code>{fmt_br(tot_sem, 2)} kWh</code> (~R$ {fmt_br(econ_sem, 2)}){tag_str}"
             )
-            if peak_power > 0:
-                msg_noite += f"• <b>Pico Máximo:</b> <code>{fmt_br(peak_power, 0)} W</code>\n"
-            msg_noite += (
-                f"• <b>Mês Atual:</b> <code>{fmt_br(month_kwh, 2)} kWh</code>\n\n"
-                f"💰 <b>FINANCEIRO</b>\n"
-                f"• <b>Economia Hoje:</b> <code>R$ {fmt_br(economia_dia, 2)}</code>\n"
-                f"• <b>Economia no Mês:</b> <code>R$ {fmt_br(economia_mes, 2)}</code>\n\n"
-                f"🌐 <b>Painel completo:</b> {PAINEL_WEB_URL}"
-            )
-            enviar_telegram(msg_noite)
 
-            # 2. Mensagem Separada: Consolidado Semanal do Mês
-            semanas_config = [
-                (1, 1, 7),
-                (2, 8, 14),
-                (3, 15, 21),
-                (4, 22, 28)
-            ]
-            if dias_no_mes > 28:
-                semanas_config.append((5, 29, dias_no_mes))
+        corpo_semanas = "\n".join(linhas_semanas)
+        msg_semanal = (
+            f"📊 <b>CONSOLIDADO SEMANAL DE GERAÇÃO</b> ☀️\n"
+            f"📅 <code>{nome_mes}</code> | Vargem Grande Paulista - SP\n\n"
+            f"🗓️ <b>PRODUÇÃO POR PERÍODO</b>\n"
+            f"{corpo_semanas}\n\n"
+            f"───────────────────────\n"
+            f"💰 <b>TOTAL ACUMULADO NO MÊS:</b> <code>{fmt_br(month_kwh, 2)} kWh</code>\n"
+            f"💵 <b>ECONOMIA TOTAL:</b> <code>R$ {fmt_br(economia_mes, 2)}</code>\n\n"
+            f"🌐 <b>Painel ao vivo:</b> {PAINEL_WEB_URL}"
+        )
+        enviar_telegram(msg_semanal)
 
-            linhas_semanas = []
-            for num_s, d_ini, d_fim in semanas_config:
-                tot_sem = 0.0
-                for d_num in range(d_ini, d_fim + 1):
-                    d_chave = f"{ano_atual}-{mes_atual:02d}-{d_num:02d}"
-                    tot_sem += historico.get(d_chave, 0.0)
-
-                if dia_atual < d_ini:
-                    tag_status = "<i>(aguardando)</i>"
-                elif d_ini <= dia_atual <= d_fim:
-                    tag_status = "<i>(em andamento)</i>"
-                else:
-                    tag_status = ""
-
-                econ_sem = tot_sem * TARIFA_KWH
-                tag_str = f" {tag_status}" if tag_status else ""
-                linhas_semanas.append(
-                    f"• <b>Semana {num_s} ({d_ini:02d}/{mes_atual:02d} a {d_fim:02d}/{mes_atual:02d}):</b> "
-                    f"<code>{fmt_br(tot_sem, 2)} kWh</code> (~R$ {fmt_br(econ_sem, 2)}){tag_str}"
-                )
-
-            corpo_semanas = "\n".join(linhas_semanas)
-            msg_semanal = (
-                f"📊 <b>CONSOLIDADO SEMANAL DE GERAÇÃO</b> ☀️\n"
-                f"📅 <code>{nome_mes}</code> | Vargem Grande Paulista - SP\n\n"
-                f"🗓️ <b>PRODUÇÃO POR PERÍODO</b>\n"
-                f"{corpo_semanas}\n\n"
-                f"───────────────────────\n"
-                f"💰 <b>TOTAL ACUMULADO NO MÊS:</b> <code>{fmt_br(month_kwh, 2)} kWh</code>\n"
-                f"💵 <b>ECONOMIA TOTAL:</b> <code>R$ {fmt_br(economia_mes, 2)}</code>\n\n"
-                f"🌐 <b>Painel ao vivo:</b> {PAINEL_WEB_URL}"
-            )
-            enviar_telegram(msg_semanal)
-
-            # 3. Limpeza Automática: Apaga as mensagens intermediárias do dia
-            mensagens_para_apagar = estado.get("mensagens_do_dia", [])
-            print(f"🧹 Iniciando limpeza de {len(mensagens_para_apagar)} mensagens intermediárias do dia...")
+        # 3. Limpeza Automática: Apaga as mensagens intermediárias do dia
+        mensagens_para_apagar = estado.get("mensagens_do_dia", [])
+        if mensagens_para_apagar:
+            print(f"🧹 Iniciando limpeza de {len(mensagens_para_apagar)} mensagens intermediárias...")
             for mid in mensagens_para_apagar:
                 apagar_mensagem_telegram(mid)
 
-            estado["mensagens_do_dia"] = []
-            salvar_estado(estado)
-            return
+        estado["mensagens_do_dia"] = []
+        salvar_estado(estado)
+        return
 
     # C) NOTIFICAÇÃO PERIÓDICA DE 30 MINUTOS (06h00 às 18h30)
     if 6 <= hora_int <= 18:
@@ -937,22 +937,22 @@ def main():
         pico_str = f" | <b>Pico:</b> <code>{fmt_br(peak_power or real_power_val, 0)} W</code>"
 
         msg_padrao = (
-            f"☀️ <b>Usina Solar Mendes</b> ☀️\n"
+            f"☀️ <b>PAINEL SOLAR HOYMILES</b> ☀️\n"
             f"📅 <code>{hora_str}</code> | {status_icon}\n\n"
             f"📊 <b>GERAÇÃO & RENDIMENTO</b>\n"
             f"• <b>Potência Atual:</b> <code>{fmt_decimal(real_power_val, 2)} W</code> ({fmt_br(eficiencia, 1)}% da usina)\n"
             f"• <b>Hoje:</b> <code>{today_display}</code>{pico_str}\n"
-            f"• <b>Rendimento Diário (HSP):</b> <code>{fmt_br(hsp, 2)} h`\n"
-            f"• <b>Mês Atual:</b> <code>{fmt_br(month_kwh, 2)} kWh`\n\n"
+            f"• <b>Rendimento Diário (HSP):</b> <code>{fmt_br(hsp, 2)} h</code>\n"
+            f"• <b>Mês Atual:</b> <code>{fmt_br(month_kwh, 2)} kWh</code>\n\n"
             f"💰 <b>ECONOMIA ESTIMADA</b>\n"
-            f"• <b>Hoje:</b> <code>R$ {fmt_br(economia_dia, 2)}`\n"
-            f"• <b>Mês Atual:</b> <code>R$ {fmt_br(economia_mes, 2)}`\n\n"
+            f"• <b>Hoje:</b> <code>R$ {fmt_br(economia_dia, 2)}</code>\n"
+            f"• <b>Mês Atual:</b> <code>R$ {fmt_br(economia_mes, 2)}</code>\n\n"
         )
 
         if grid_v_num > 0:
             msg_padrao += (
                 f"⚡ <b>REDE ELÉTRICA (CA)</b>\n"
-                f"• <b>Tensão:</b> <code>{fmt_br(grid_v_num, 1)} V` | <b>Frequência:</b> <code>{fmt_br(grid_f_num, 1)} Hz`\n\n"
+                f"• <b>Tensão:</b> <code>{fmt_br(grid_v_num, 1)} V</code> | <b>Frequência:</b> <code>{fmt_br(grid_f_num, 1)} Hz</code>\n\n"
             )
 
         if inversores_msg:
