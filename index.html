@@ -54,11 +54,7 @@
         .status-text { font-size: 13px; font-weight: 700; color: #94a3b8; }
         .location { color: var(--text-muted); font-size: 12px; margin-top: 6px; }
 
-        /* BOTÃO ATUALIZAR USINA */
-        .btn-sync-wrapper {
-            margin-top: 14px;
-            text-align: center;
-        }
+        .btn-sync-wrapper { margin-top: 14px; text-align: center; }
         .btn-sync {
             background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
             border: 1px solid #38bdf8;
@@ -204,11 +200,7 @@
         .topo-total-title { font-size: 11px; text-transform: uppercase; color: #ede9fe; font-weight: 700; }
         .topo-total-val { font-size: 20px; font-weight: 900; color: #ffffff; }
 
-        .topo-branch-line {
-            width: 2px;
-            height: 18px;
-            background: #64748b;
-        }
+        .topo-branch-line { width: 2px; height: 18px; background: #64748b; }
         .topo-inverters-wrapper {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
@@ -272,7 +264,7 @@
         
                 <span class="status-text">Repouso / Inoperante (Sem Sol)</span>
             </div>
-            <p class="location">📍 Vargem Grande Paulista - SP | Atualizado às 02/09/2026 - 19:00</p>
+            <p class="location">📍 Vargem Grande Paulista - SP | Atualizado às 02/09/2026 - 19:18</p>
             
             <div class="btn-sync-wrapper">
                 <button id="btnAtualizar" class="btn-sync" onclick="solicitarAtualizacao()">
@@ -314,7 +306,7 @@
             <div>
                 <div class="stat-label" style="color: #c084fc;">🏆 Recorde de Geração (Setembro/2026)</div>
                 <div style="font-size: 14px; font-weight: 700; color: var(--text-main); margin-top: 2px;">Dia 02/09</div>
-                <div style="font-size: 12px; color: var(--text-muted);">Economia gerada: <b>R$ 22,89</b></div>
+                <div style="font-size: 12px; color: var(--text-muted);">Economia gerada: <b>R$ 19,75</b></div>
             </div>
             <div class="record-badge">22,44 <span style="font-size: 14px;">kWh</span></div>
         </div>
@@ -323,12 +315,12 @@
             <div class="card">
                 <div class="stat-label">Geração de Hoje</div>
                 <div class="stat-val">22,44 kWh</div>
-                <div class="stat-sub">Economia: R$ 22,89 | Pico: 0 W</div>
+                <div class="stat-sub">Economia: R$ 19,75 | Pico: 0 W</div>
             </div>
             <div class="card">
                 <div class="stat-label">Acumulado no Mês</div>
                 <div class="stat-val">7,00 <span style="font-size: 14px;">kWh</span></div>
-                <div class="stat-sub">Economia: R$ 7,14 | 4,99 HSP</div>
+                <div class="stat-sub">Economia: R$ 6,16 | 4,99 HSP</div>
             </div>
         </div>
 
@@ -347,7 +339,7 @@
                 </div>
                 <div class="dtu-item">
                     <span class="dtu-item-title">Última Sincronização</span>
-                    <span class="dtu-item-val">🕒 02/09/2026 - 19:00</span>
+                    <span class="dtu-item-val">🕒 02/09/2026 - 19:18</span>
                     <span class="dtu-item-sub">Status: Nuvem Hoymiles OK</span>
                 </div>
             </div>
@@ -430,15 +422,8 @@
 
         function solicitarAtualizacao() {
             const btn = document.getElementById('btnAtualizar');
-            
-            if (!WEBHOOK_URL || WEBHOOK_URL.includes("SUA_URL_DO_GOOGLE_SCRIPT_AQUI")) {
-                alert("Para ativar o botão de atualização imediata, adicione o link do Google Script na variável WEBHOOK_ATUALIZAR_URL.");
-                return;
-            }
-
             btn.disabled = true;
 
-            // Dispara requisição assíncrona para a ponte
             fetch(WEBHOOK_URL, { method: 'GET', mode: 'no-cors' }).catch(() => {});
 
             let segundos = 40;
