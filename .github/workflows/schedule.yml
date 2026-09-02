@@ -1,7 +1,12 @@
-name: Monitor Hoymiles 30min
+name: Monitor Hoymiles
 
 on:
   workflow_dispatch:
+    inputs:
+      silent:
+        description: 'Modo Silencioso'
+        required: false
+        default: 'false'
 
 permissions:
   contents: write
@@ -26,6 +31,8 @@ jobs:
           playwright install --with-deps chromium
 
       - name: Executar Monitoramento
+        env:
+          SILENT_MODE: ${{ github.event.inputs.silent || 'false' }}
         run: python monitor_hoymiles.py
 
       - name: Publicar Painel Web e Estado
