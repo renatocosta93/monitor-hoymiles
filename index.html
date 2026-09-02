@@ -53,6 +53,39 @@
         }
         .status-text { font-size: 13px; font-weight: 700; color: #94a3b8; }
         .location { color: var(--text-muted); font-size: 12px; margin-top: 6px; }
+
+        /* BOTÃO ATUALIZAR USINA */
+        .btn-sync-wrapper {
+            margin-top: 14px;
+            text-align: center;
+        }
+        .btn-sync {
+            background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+            border: 1px solid #38bdf8;
+            color: #ffffff;
+            font-size: 13px;
+            font-weight: 700;
+            padding: 10px 22px;
+            border-radius: 999px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 4px 14px rgba(2, 132, 199, 0.35);
+            transition: all 0.2s ease;
+        }
+        .btn-sync:hover {
+            background: linear-gradient(135deg, #0369a1 0%, #075985 100%);
+            transform: translateY(-1px);
+        }
+        .btn-sync:disabled {
+            background: #334155;
+            border-color: #475569;
+            color: #94a3b8;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
         
         .card {
             background: var(--card-bg);
@@ -239,7 +272,13 @@
         
                 <span class="status-text">Repouso / Inoperante (Sem Sol)</span>
             </div>
-            <p class="location">📍 Vargem Grande Paulista - SP | Atualizado às 02/09/2026 - 18:33</p>
+            <p class="location">📍 Vargem Grande Paulista - SP | Atualizado às 02/09/2026 - 18:42</p>
+            
+            <div class="btn-sync-wrapper">
+                <button id="btnAtualizar" class="btn-sync" onclick="solicitarAtualizacao()">
+                    <span>🔄</span> <span>Atualizar Usina Agora</span>
+                </button>
+            </div>
         </header>
 
         <div class="card power-card-compact">
@@ -308,7 +347,7 @@
                 </div>
                 <div class="dtu-item">
                     <span class="dtu-item-title">Última Sincronização</span>
-                    <span class="dtu-item-val">🕒 02/09/2026 - 18:33</span>
+                    <span class="dtu-item-val">🕒 02/09/2026 - 18:42</span>
                     <span class="dtu-item-sub">Status: Nuvem Hoymiles OK</span>
                 </div>
             </div>
@@ -385,5 +424,37 @@
             </div>
         </div>
     </div>
+
+    <script>
+        const WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbwO9ybli9NqAPft9Aa0dQNorfcZYTSmKucJUU7fBtzCIGgT-5ZKYWo2hPFz5EPkJ6PT/exec";
+
+        function solicitarAtualizacao() {
+            const btn = document.getElementById('btnAtualizar');
+            
+            if (!WEBHOOK_URL || WEBHOOK_URL.includes("SUA_URL_DO_GOOGLE_SCRIPT_AQUI")) {
+                alert("Para ativar o botão de atualização imediata, adicione o link do Google Script na variável WEBHOOK_ATUALIZAR_URL.");
+                return;
+            }
+
+            btn.disabled = true;
+
+            // Dispara requisição assíncrona para a ponte
+            fetch(WEBHOOK_URL, { method: 'GET', mode: 'no-cors' }).catch(() => {});
+
+            let segundos = 40;
+            btn.innerHTML = "<span>⏳</span> <span>Buscando dados na usina (" + segundos + "s)...</span>";
+
+            const interval = setInterval(() => {
+                segundos--;
+                if (segundos <= 0) {
+                    clearInterval(interval);
+                    btn.innerHTML = "<span>🔄</span> <span>Atualizando painel...</span>";
+                    window.location.reload();
+                } else {
+                    btn.innerHTML = "<span>⏳</span> <span>Buscando dados na usina (" + segundos + "s)...</span>";
+                }
+            }, 1000);
+        }
+    </script>
 </body>
 </html>
