@@ -16,19 +16,17 @@ TELEGRAM_BOT_TOKEN = "8946039720:AAF7U0QokemhGv_5iTzVj9L6IGB1C1kOvhE"
 TELEGRAM_CHAT_ID = "1020154663"
 
 PAINEL_WEB_URL = "https://renatocosta93.github.io/monitor-hoymiles/"
-
-# URL da ponte Google Apps Script para o botão disparar o workflow
-# Cole aqui a URL gerada (terminada em /exec)
-WEBHOOK_ATUALIZAR_URL = "https://script.google.com/macros/s/AKfycbwO9ybli9NqAPft9Aa0dQNorfcZYTSmKucJUU7fBtzCIGgT-5ZKYWo2hPFz5EPkJ6PT/exec"
+WEBHOOK_ATUALIZAR_URL = "SUA_URL_DO_GOOGLE_SCRIPT_AQUI"
 
 POTENCIA_INSTALADA_WP = 4500.0       # 4.5 kWp
-TARIFA_KWH = 1.02                  # R$/kWh
+TARIFA_KWH = 0.88                    # R$/kWh
 DATA_INICIO_OPERACAO = "2026-08-20"  # Início oficial da usina
 
 LATITUDE = -23.6028
 LONGITUDE = -47.0258
 
 FUSO_BR = timezone(timedelta(hours=-3))
+SILENT_MODE = os.environ.get("SILENT_MODE", "false").lower() in ["true", "1", "yes"]
 
 # ==========================================
 # FUNÇÕES AUXILIARES DE FORMATAÇÃO E CÁLCULO
@@ -77,7 +75,7 @@ def carregar_estado():
         "data_fechamento_enviado": "",
         "meta_kwh": 18.0,
         "previsao_desc": "Ensolarado",
-        "mensagens_do_dia": [],
+        "mensagens_armazenadas": [],
         "historico_dias": {}
     }
 
@@ -133,12 +131,10 @@ def enviar_telegram(mensagem_html):
             print(f"✅ Notificação entregue no Telegram (ID: {msg_id}).")
             return msg_id
         else:
-            print(f"⚠️ Telegram recusou HTML (HTTP {res.status_code}): {res.text}")
             texto_puro = re.sub(r'<[^>]+>', '', mensagem_html)
             res_fb = requests.post(url, json={"chat_id": TELEGRAM_CHAT_ID, "text": texto_puro}, timeout=15)
             if res_fb.status_code == 200:
                 msg_id = res_fb.json().get("result", {}).get("message_id")
-                print(f"✅ Mensagem entregue via contingência (ID: {msg_id}).")
                 return msg_id
             return None
     except Exception as e:
@@ -236,11 +232,7 @@ def gerar_painel_html(dados):
         .status-text {{ font-size: 13px; font-weight: 700; color: {dados['status_color']}; }}
         .location {{ color: var(--text-muted); font-size: 12px; margin-top: 6px; }}
 
-        /* BOTÃO ATUALIZAR USINA */
-        .btn-sync-wrapper {{
-            margin-top: 14px;
-            text-align: center;
-        }}
+        .btn-sync-wrapper {{ margin-top: 14px; text-align: center; }}
         .btn-sync {{
             background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
             border: 1px solid #38bdf8;
@@ -386,11 +378,7 @@ def gerar_painel_html(dados):
         .topo-total-title {{ font-size: 11px; text-transform: uppercase; color: #ede9fe; font-weight: 700; }}
         .topo-total-val {{ font-size: 20px; font-weight: 900; color: #ffffff; }}
 
-        .topo-branch-line {{
-            width: 2px;
-            height: 18px;
-            background: #64748b;
-        }}
+        .topo-branch-line {{ width: 2px; height: 18px; background: #64748b; }}
         .topo-inverters-wrapper {{
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
@@ -553,13 +541,11 @@ def gerar_painel_html(dados):
             const btn = document.getElementById('btnAtualizar');
             
             if (!WEBHOOK_URL || WEBHOOK_URL.includes("SUA_URL_DO_GOOGLE_SCRIPT_AQUI")) {{
-                alert("Para ativar o botão de atualização imediata, adicione o link do Google Script na variável WEBHOOK_ATUALIZAR_URL.");
+                alert("Adicione o link do Google Script na variável WEBHOOK_ATUALIZAR_URL no script Python.");
                 return;
             }}
 
             btn.disabled = true;
-
-            // Dispara requisição assíncrona para a ponte
             fetch(WEBHOOK_URL, {{ method: 'GET', mode: 'no-cors' }}).catch(() => {{}});
 
             let segundos = 40;
@@ -598,6 +584,8 @@ def main():
     hora_str = agora_br.strftime("%d/%m/%Y - %H:%M")
 
     print(f"🚀 Monitor Hoymiles em execução: {hora_str} (Horário de Brasília)")
+    if SILENT_MODE:
+        print("🔇 Modo Silencioso ATIVADO: Apenas o painel web será atualizado. Notificações ignoradas.")
 
     meses_pt = ["", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
     nome_mes = f"{meses_pt[mes_atual]}/{ano_atual}"
@@ -607,7 +595,6 @@ def main():
     # 1. Atualização diária de previsão
     if estado.get("data_atual") != data_str:
         estado["data_atual"] = data_str
-        estado["mensagens_do_dia"] = []
         prev = obter_previsao_tempo()
         estado["meta_kwh"] = prev["meta_kwh"]
         estado["previsao_desc"] = f"{prev['desc']} ({prev['t_min']}°C a {prev['t_max']}°C, {prev['hsp']} HSP)"
@@ -671,7 +658,6 @@ def main():
             js_dom = "() => ({ all_text: document.body.innerText || '' })"
             scraped_dom = page.evaluate(js_dom)
 
-            # Consulta ativa de APIs com Histórico Mensal
             js_apis = f"""
             async () => {{
                 let token = localStorage.getItem('token') || localStorage.getItem('access_token') || '';
@@ -770,7 +756,6 @@ def main():
             if sn and str(sn).strip().isalnum() and len(str(sn).strip()) >= 8:
                 inversores_dict[str(sn)] = obj
 
-            # Captura de itens do calendário histórico diário retornado pela API
             d_item = extrair_campo(obj, ["time", "date", "day", "record_date"])
             e_item = extrair_campo(obj, ["eq", "energy", "val", "today_eq", "generation"])
             if d_item and e_item is not None:
@@ -803,12 +788,10 @@ def main():
 
     print(f"📊 Dados Brutos: Potência={real_power_val}W | Hoje={today_kwh}kWh | Mês={month_kwh}kWh")
 
-    # Atualiza o dia de hoje no histórico
     if data_str >= DATA_INICIO_OPERACAO:
         if today_kwh > 0:
             historico[data_str] = round(today_kwh, 2)
 
-    # Reconciliação inteligente com dados oficiais do mês
     soma_atual_mes = sum(v for k, v in historico.items() if k.startswith(ano_mes_str) and k >= DATA_INICIO_OPERACAO)
     if month_kwh > soma_atual_mes and month_kwh > 0:
         dias_ativos = []
@@ -938,12 +921,28 @@ def main():
     })
 
     # ==========================================
+    # PARADA ANTECIPADA SE FOR EXECUÇÃO SILENCIOSA
+    # ==========================================
+    if SILENT_MODE:
+        print("🔇 Execução silenciosa via botão concluída: Painel web index.html atualizado. Nenhuma mensagem enviada ao Telegram.")
+        print("🏁 Ciclo finalizado com sucesso.")
+        return
+
+    # ==========================================
     # 3. DISPAROS TELEGRAM
     # ==========================================
 
-    # A) MENSAGEM MATINAL (BOM DIA) — 1x por dia a partir das 06h00
+    # A) MENSAGEM MATINAL (BOM DIA) + FAXINA MATINAL COMPLETA
     if (6 <= hora_int <= 12) and (estado.get("data_bom_dia_enviado") != data_str):
         estado["data_bom_dia_enviado"] = data_str
+
+        # Limpeza: Apaga todas as mensagens acumuladas do ciclo anterior
+        mensagens_para_apagar = estado.get("mensagens_armazenadas", estado.get("mensagens_do_dia", []))
+        if mensagens_para_apagar:
+            print(f"🧹 Faxina matinal: Apagando {len(mensagens_para_apagar)} notificações anteriores do chat...")
+            for mid in mensagens_para_apagar:
+                apagar_mensagem_telegram(mid)
+            estado["mensagens_armazenadas"] = []
 
         msg_manha = (
             f"🌅 <b>USINA ATIVADA — BOM DIA!</b> ☀️\n"
@@ -958,152 +957,143 @@ def main():
         )
         mid = enviar_telegram(msg_manha)
         if mid:
-            estado.setdefault("mensagens_do_dia", []).append(mid)
+            estado.setdefault("mensagens_armazenadas", []).append(mid)
         salvar_estado(estado)
 
-    # B) FECHAMENTO NOTURNO + CONSOLIDADO HISTÓRICO + LIMPEZA (Após 18h30)
+    # B) FECHAMENTO NOTURNO + CONSOLIDADO HISTÓRICO COMPLETO (Após 18h30)
     if (hora_int >= 18 and minuto_int >= 30) or hora_int >= 19:
-        estado["data_fechamento_enviado"] = data_str
-        salvar_estado(estado)
+        if estado.get("data_fechamento_enviado") != data_str:
+            estado["data_fechamento_enviado"] = data_str
+            salvar_estado(estado)
 
-        status_meta = f"🟢 <code>{fmt_br(pct_meta_dia, 1)}% da meta atingida</code>" if pct_meta_dia >= 100 else f"🟡 <code>{fmt_br(pct_meta_dia, 1)}% da meta atingida</code>"
+            status_meta = f"🟢 <code>{fmt_br(pct_meta_dia, 1)}% da meta atingida</code>" if pct_meta_dia >= 100 else f"🟡 <code>{fmt_br(pct_meta_dia, 1)}% da meta atingida</code>"
 
-        # 1. Mensagem de Balanço Diário
-        msg_noite = (
-            f"🌙 <b>FIM DA IRRADIAÇÃO SOLAR</b> 🌙\n"
-            f"📅 <code>{hora_str}</code> | Usina em Repouso\n\n"
-            f"📊 <b>BALANÇO DO DIA</b>\n"
-            f"• <b>Gerado Hoje:</b> <code>{today_display}</code>\n"
-            f"• <b>Meta do Dia:</b> <code>{fmt_br(meta_dia, 2)} kWh</code> ({status_meta})\n"
-        )
-        if peak_power > 0:
-            msg_noite += f"• <b>Pico Máximo:</b> <code>{fmt_br(peak_power, 0)} W</code>\n"
-        msg_noite += (
-            f"• <b>Mês Atual:</b> <code>{fmt_br(month_kwh, 2)} kWh</code>\n\n"
-            f"💰 <b>FINANCEIRO</b>\n"
-            f"• <b>Economia Hoje:</b> <code>R$ {fmt_br(economia_dia, 2)}</code>\n"
-            f"• <b>Economia no Mês:</b> <code>R$ {fmt_br(economia_mes, 2)}</code>\n\n"
-            f"🌐 <b>Painel completo:</b> {PAINEL_WEB_URL}"
-        )
-        enviar_telegram(msg_noite)
+            # 1. Balanço do Dia
+            msg_noite = (
+                f"🌙 <b>FIM DA IRRADIAÇÃO SOLAR</b> 🌙\n"
+                f"📅 <code>{hora_str}</code> | Usina em Repouso\n\n"
+                f"📊 <b>BALANÇO DO DIA</b>\n"
+                f"• <b>Gerado Hoje:</b> <code>{today_display}</code>\n"
+                f"• <b>Meta do Dia:</b> <code>{fmt_br(meta_dia, 2)} kWh</code> ({status_meta})\n"
+            )
+            if peak_power > 0:
+                msg_noite += f"• <b>Pico Máximo:</b> <code>{fmt_br(peak_power, 0)} W</code>\n"
+            msg_noite += (
+                f"• <b>Mês Atual:</b> <code>{fmt_br(month_kwh, 2)} kWh</code>\n\n"
+                f"💰 <b>FINANCEIRO</b>\n"
+                f"• <b>Economia Hoje:</b> <code>R$ {fmt_br(economia_dia, 2)}</code>\n"
+                f"• <b>Economia no Mês:</b> <code>R$ {fmt_br(economia_mes, 2)}</code>\n\n"
+                f"🌐 <b>Painel completo:</b> {PAINEL_WEB_URL}"
+            )
+            mid1 = enviar_telegram(msg_noite)
+            if mid1:
+                estado.setdefault("mensagens_armazenadas", []).append(mid1)
 
-        # 2. Mensagem Separada: Consolidado Semanal com Apuração Real
-        semanas_config = [
-            (1, 1, 7),
-            (2, 8, 14),
-            (3, 15, 21),
-            (4, 22, 28)
-        ]
-        if dias_no_mes > 28:
-            semanas_config.append((5, 29, dias_no_mes))
+            # 2. Consolidado Semanal + Histórico Mensal
+            semanas_config = [
+                (1, 1, 7),
+                (2, 8, 14),
+                (3, 15, 21),
+                (4, 22, 28)
+            ]
+            if dias_no_mes > 28:
+                semanas_config.append((5, 29, dias_no_mes))
 
-        dia_inicio_op = int(DATA_INICIO_OPERACAO.split("-")[2])
-        ano_inicio_op = int(DATA_INICIO_OPERACAO.split("-")[0])
-        mes_inicio_op = int(DATA_INICIO_OPERACAO.split("-")[1])
-        linhas_semanas = []
+            dia_inicio_op = int(DATA_INICIO_OPERACAO.split("-")[2])
+            ano_inicio_op = int(DATA_INICIO_OPERACAO.split("-")[0])
+            mes_inicio_op = int(DATA_INICIO_OPERACAO.split("-")[1])
+            linhas_semanas = []
 
-        for num_s, d_ini, d_fim in semanas_config:
-            tot_sem = 0.0
-            
-            # Semanas anteriores à data de início (20/08)
-            if ano_atual == ano_inicio_op and mes_atual == mes_inicio_op and d_fim < dia_inicio_op:
-                tag_status = "<i>(Pré-operação / Inativa)</i>"
+            for num_s, d_ini, d_fim in semanas_config:
                 tot_sem = 0.0
-            else:
-                for d_num in range(d_ini, d_fim + 1):
-                    d_chave = f"{ano_atual}-{mes_atual:02d}-{d_num:02d}"
-                    if d_chave >= DATA_INICIO_OPERACAO:
-                        tot_sem += historico.get(d_chave, 0.0)
-
-                if dia_atual < d_ini:
-                    tag_status = "<i>(aguardando)</i>"
-                elif d_ini <= dia_atual <= d_fim:
-                    tag_status = "<i>(em andamento)</i>"
+                if ano_atual == ano_inicio_op and mes_atual == mes_inicio_op and d_fim < dia_inicio_op:
+                    tag_status = "<i>(Pré-operação / Inativa)</i>"
+                    tot_sem = 0.0
                 else:
-                    tag_status = ""
+                    for d_num in range(d_ini, d_fim + 1):
+                        d_chave = f"{ano_atual}-{mes_atual:02d}-{d_num:02d}"
+                        if d_chave >= DATA_INICIO_OPERACAO:
+                            tot_sem += historico.get(d_chave, 0.0)
 
-            econ_sem = tot_sem * TARIFA_KWH
-            tag_str = f" {tag_status}" if tag_status else ""
-            linhas_semanas.append(
-                f"• <b>Semana {num_s} ({d_ini:02d}/{mes_atual:02d} a {d_fim:02d}/{mes_atual:02d}):</b> "
-                f"<code>{fmt_br(tot_sem, 2)} kWh</code> (~R$ {fmt_br(econ_sem, 2)}){tag_str}"
+                    if dia_atual < d_ini:
+                        tag_status = "<i>(aguardando)</i>"
+                    elif d_ini <= dia_atual <= d_fim:
+                        tag_status = "<i>(em andamento)</i>"
+                    else:
+                        tag_status = ""
+
+                econ_sem = tot_sem * TARIFA_KWH
+                tag_str = f" {tag_status}" if tag_status else ""
+                linhas_semanas.append(
+                    f"• <b>Semana {num_s} ({d_ini:02d}/{mes_atual:02d} a {d_fim:02d}/{mes_atual:02d}):</b> "
+                    f"<code>{fmt_br(tot_sem, 2)} kWh</code> (~R$ {fmt_br(econ_sem, 2)}){tag_str}"
+                )
+
+            corpo_semanas = "\n".join(linhas_semanas)
+
+            # Histórico Mensal Completo (Meses Fechados + Mês Atual)
+            meses_historico = {}
+            for data_k, val_kwh in historico.items():
+                if data_k >= DATA_INICIO_OPERACAO:
+                    try:
+                        p = data_k.split("-")
+                        chave_m = (int(p[0]), int(p[1]))
+                        meses_historico[chave_m] = round(meses_historico.get(chave_m, 0.0) + float(val_kwh), 2)
+                    except Exception:
+                        pass
+
+            chave_atual = (ano_atual, mes_atual)
+            soma_mes_atual = sum(v for k, v in historico.items() if k.startswith(f"{ano_atual}-{mes_atual:02d}") and k >= DATA_INICIO_OPERACAO)
+            meses_historico[chave_atual] = round(max(soma_mes_atual, month_kwh), 2)
+
+            linhas_meses_historico = []
+            for (a_f, m_f) in sorted(meses_historico.keys()):
+                kwh_m = meses_historico[(a_f, m_f)]
+                econ_m = kwh_m * TARIFA_KWH
+                nome_m_f = f"{meses_pt[m_f]}/{a_f}"
+                
+                tags = []
+                if a_f == ano_inicio_op and m_f == mes_inicio_op:
+                    tags.append("início em 20/08")
+                if (a_f, m_f) == chave_atual:
+                    tags.append("em andamento")
+                
+                tag_str = f" <i>({', '.join(tags)})</i>" if tags else ""
+                linhas_meses_historico.append(
+                    f"• <b>{nome_m_f}:</b> <code>{fmt_br(kwh_m, 2)} kWh</code> (~R$ {fmt_br(econ_m, 2)}){tag_str}"
+                )
+
+            corpo_meses = "\n".join(linhas_meses_historico)
+
+            total_historico_kwh = sum(meses_historico.values())
+            total_historico_econ = total_historico_kwh * TARIFA_KWH
+
+            msg_semanal = (
+                f"📊 <b>CONSOLIDADO SEMANAL DE GERAÇÃO</b> ☀️\n"
+                f"📅 <code>{nome_mes}</code> | Vargem Grande Paulista - SP\n\n"
+                f"🗓️ <b>PRODUÇÃO POR SEMANA ({meses_pt[mes_atual].upper()})</b>\n"
+                f"{corpo_semanas}\n\n"
+                f"───────────────────────\n"
+                f"📚 <b>HISTÓRICO MENSAL DE PRODUÇÃO</b>\n"
+                f"{corpo_meses}\n"
+                f"───────────────────────\n"
+                f"📈 <b>TOTAL HISTÓRICO ACUMULADO:</b> <code>{fmt_br(total_historico_kwh, 2)} kWh</code>\n"
+                f"💵 <b>ECONOMIA TOTAL ACUMULADA:</b> <code>R$ {fmt_br(total_historico_econ, 2)}</code>\n\n"
+                f"🌐 <b>Painel ao vivo:</b> {PAINEL_WEB_URL}"
             )
+            mid2 = enviar_telegram(msg_semanal)
+            if mid2:
+                estado.setdefault("mensagens_armazenadas", []).append(mid2)
 
-        corpo_semanas = "\n".join(linhas_semanas)
-
-        # Subtotal do Mês Atual
-        kwh_mes_atual = sum(v for k, v in historico.items() if k.startswith(f"{ano_atual}-{mes_atual:02d}") and k >= DATA_INICIO_OPERACAO)
-        if month_kwh > kwh_mes_atual:
-            kwh_mes_atual = month_kwh
-        econ_mes_atual = kwh_mes_atual * TARIFA_KWH
-
-        # Meses Anteriores Concluídos
-        meses_historico = {}
-        for data_k, val_kwh in historico.items():
-            if data_k >= DATA_INICIO_OPERACAO:
-                try:
-                    p = data_k.split("-")
-                    chave_m = (int(p[0]), int(p[1]))
-                    meses_historico[chave_m] = meses_historico.get(chave_m, 0.0) + float(val_kwh)
-                except Exception:
-                    pass
-
-        meses_anteriores = [k for k in sorted(meses_historico.keys()) if k < (ano_atual, mes_atual)]
-        linhas_meses_fechados = []
-        for (a_f, m_f) in meses_anteriores:
-            kwh_m = meses_historico[(a_f, m_f)]
-            econ_m = kwh_m * TARIFA_KWH
-            nome_m_f = f"{meses_pt[m_f]}/{a_f}"
-            obs_inicio = " <i>(início em 20/08)</i>" if (a_f == ano_inicio_op and m_f == mes_inicio_op) else ""
-            linhas_meses_fechados.append(
-                f"• <b>{nome_m_f}:</b> <code>{fmt_br(kwh_m, 2)} kWh</code> (~R$ {fmt_br(econ_m, 2)}){obs_inicio}"
-            )
-
-        bloco_historico_meses = ""
-        if linhas_meses_fechados:
-            bloco_historico_meses = (
-                "───────────────────────\n"
-                "📚 <b>HISTÓRICO DE MESES CONCLUÍDOS</b>\n"
-                + "\n".join(linhas_meses_fechados) + "\n\n"
-            )
-
-        # Total Geral Acumulado Vitalício
-        total_historico_kwh = sum(v for k, v in historico.items() if k >= DATA_INICIO_OPERACAO)
-        if kwh_mes_atual > total_historico_kwh:
-            total_historico_kwh = kwh_mes_atual
-        total_historico_econ = total_historico_kwh * TARIFA_KWH
-
-        msg_semanal = (
-            f"📊 <b>CONSOLIDADO SEMANAL DE GERAÇÃO</b> ☀️\n"
-            f"📅 <code>{nome_mes}</code> | Vargem Grande Paulista - SP\n\n"
-            f"🗓️ <b>PRODUÇÃO DO MÊS ({meses_pt[mes_atual].upper()})</b>\n"
-            f"{corpo_semanas}\n"
-            f"• <b>Subtotal {meses_pt[mes_atual]}:</b> <code>{fmt_br(kwh_mes_atual, 2)} kWh</code> (~R$ {fmt_br(econ_mes_atual, 2)})\n\n"
-            f"{bloco_historico_meses}"
-            f"───────────────────────\n"
-            f"💰 <b>TOTAL GERAL ACUMULADO (DESDE 20/08/2026):</b> <code>{fmt_br(total_historico_kwh, 2)} kWh</code>\n"
-            f"💵 <b>ECONOMIA TOTAL ACUMULADA:</b> <code>R$ {fmt_br(total_historico_econ, 2)}</code>\n\n"
-            f"🌐 <b>Painel ao vivo:</b> {PAINEL_WEB_URL}"
-        )
-        enviar_telegram(msg_semanal)
-
-        # 3. Limpeza Automática: Apaga as notificações intermediárias do dia
-        mensagens_para_apagar = estado.get("mensagens_do_dia", [])
-        if mensagens_para_apagar:
-            print(f"🧹 Limpando {len(mensagens_para_apagar)} notificações diurnas...")
-            for mid in mensagens_para_apagar:
-                apagar_mensagem_telegram(mid)
-
-        estado["mensagens_do_dia"] = []
-        salvar_estado(estado)
-        return
+            salvar_estado(estado)
+            return
 
     # C) NOTIFICAÇÃO PERIÓDICA DIURNA (06h00 às 18h30)
     if 6 <= hora_int <= 18:
         dados_validos = (today_kwh > 0) or (real_power_val > 0) or bool(inversores_dict)
 
         if not dados_validos:
-            print("⚠️ Leitura vazia ou indisponível neste ciclo. Envio ignorado para evitar dados zerados.")
+            print("⚠️ Leitura vazia ou indisponível neste ciclo. Envio ignorado.")
             return
 
         status_icon = "🟢 Online (Gerando)" if real_power_val > 10 else "🟡 Baixa Irradiação / Início"
@@ -1138,7 +1128,7 @@ def main():
 
         mid = enviar_telegram(msg_padrao)
         if mid:
-            estado.setdefault("mensagens_do_dia", []).append(mid)
+            estado.setdefault("mensagens_armazenadas", []).append(mid)
             salvar_estado(estado)
 
     print("🏁 Ciclo de monitoramento finalizado com sucesso.")
