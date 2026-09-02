@@ -16,7 +16,7 @@ TELEGRAM_BOT_TOKEN = "8946039720:AAF7U0QokemhGv_5iTzVj9L6IGB1C1kOvhE"
 TELEGRAM_CHAT_ID = "1020154663"
 
 PAINEL_WEB_URL = "https://renatocosta93.github.io/monitor-hoymiles/"
-WEBHOOK_ATUALIZAR_URL = "SUA_URL_DO_GOOGLE_SCRIPT_AQUI"
+WEBHOOK_ATUALIZAR_URL = "https://script.google.com/macros/s/AKfycbwO9ybli9NqAPft9Aa0dQNorfcZYTSmKucJUU7fBtzCIGgT-5ZKYWo2hPFz5EPkJ6PT/exec"
 
 POTENCIA_INSTALADA_WP = 4500.0       # 4.5 kWp
 TARIFA_KWH = 0.88                    # R$/kWh
@@ -539,13 +539,8 @@ def gerar_painel_html(dados):
 
         function solicitarAtualizacao() {{
             const btn = document.getElementById('btnAtualizar');
-            
-            if (!WEBHOOK_URL || WEBHOOK_URL.includes("SUA_URL_DO_GOOGLE_SCRIPT_AQUI")) {{
-                alert("Adicione o link do Google Script na variável WEBHOOK_ATUALIZAR_URL no script Python.");
-                return;
-            }}
-
             btn.disabled = true;
+
             fetch(WEBHOOK_URL, {{ method: 'GET', mode: 'no-cors' }}).catch(() => {{}});
 
             let segundos = 40;
@@ -936,7 +931,6 @@ def main():
     if (6 <= hora_int <= 12) and (estado.get("data_bom_dia_enviado") != data_str):
         estado["data_bom_dia_enviado"] = data_str
 
-        # Limpeza: Apaga todas as mensagens acumuladas do ciclo anterior
         mensagens_para_apagar = estado.get("mensagens_armazenadas", estado.get("mensagens_do_dia", []))
         if mensagens_para_apagar:
             print(f"🧹 Faxina matinal: Apagando {len(mensagens_para_apagar)} notificações anteriores do chat...")
@@ -1031,7 +1025,7 @@ def main():
 
             corpo_semanas = "\n".join(linhas_semanas)
 
-            # Histórico Mensal Completo (Meses Fechados + Mês Atual)
+            # Histórico Mensal Completo
             meses_historico = {}
             for data_k, val_kwh in historico.items():
                 if data_k >= DATA_INICIO_OPERACAO:
