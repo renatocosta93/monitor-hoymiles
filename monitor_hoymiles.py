@@ -17,8 +17,12 @@ TELEGRAM_CHAT_ID = "1020154663"
 
 PAINEL_WEB_URL = "https://renatocosta93.github.io/monitor-hoymiles/"
 
+# URL da ponte Google Apps Script para o botão disparar o workflow
+# Cole aqui a URL gerada (terminada em /exec)
+WEBHOOK_ATUALIZAR_URL = "https://script.google.com/macros/s/AKfycbwO9ybli9NqAPft9Aa0dQNorfcZYTSmKucJUU7fBtzCIGgT-5ZKYWo2hPFz5EPkJ6PT/exec"
+
 POTENCIA_INSTALADA_WP = 4500.0       # 4.5 kWp
-TARIFA_KWH = 1.02                   # R$/kWh
+TARIFA_KWH = 1.02                  # R$/kWh
 DATA_INICIO_OPERACAO = "2026-08-20"  # Início oficial da usina
 
 LATITUDE = -23.6028
@@ -231,6 +235,39 @@ def gerar_painel_html(dados):
         }}
         .status-text {{ font-size: 13px; font-weight: 700; color: {dados['status_color']}; }}
         .location {{ color: var(--text-muted); font-size: 12px; margin-top: 6px; }}
+
+        /* BOTÃO ATUALIZAR USINA */
+        .btn-sync-wrapper {{
+            margin-top: 14px;
+            text-align: center;
+        }}
+        .btn-sync {{
+            background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
+            border: 1px solid #38bdf8;
+            color: #ffffff;
+            font-size: 13px;
+            font-weight: 700;
+            padding: 10px 22px;
+            border-radius: 999px;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 4px 14px rgba(2, 132, 199, 0.35);
+            transition: all 0.2s ease;
+        }}
+        .btn-sync:hover {{
+            background: linear-gradient(135deg, #0369a1 0%, #075985 100%);
+            transform: translateY(-1px);
+        }}
+        .btn-sync:disabled {{
+            background: #334155;
+            border-color: #475569;
+            color: #94a3b8;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }}
         
         .card {{
             background: var(--card-bg);
@@ -411,6 +448,12 @@ def gerar_painel_html(dados):
                 <span class="status-text">{dados['status_str']}</span>
             </div>
             <p class="location">📍 Vargem Grande Paulista - SP | Atualizado às {dados['hora_atual']}</p>
+            
+            <div class="btn-sync-wrapper">
+                <button id="btnAtualizar" class="btn-sync" onclick="solicitarAtualizacao()">
+                    <span>🔄</span> <span>Atualizar Usina Agora</span>
+                </button>
+            </div>
         </header>
 
         <div class="card power-card-compact">
@@ -502,6 +545,38 @@ def gerar_painel_html(dados):
             </div>
         </div>
     </div>
+
+    <script>
+        const WEBHOOK_URL = "{dados['webhook_url']}";
+
+        function solicitarAtualizacao() {{
+            const btn = document.getElementById('btnAtualizar');
+            
+            if (!WEBHOOK_URL || WEBHOOK_URL.includes("SUA_URL_DO_GOOGLE_SCRIPT_AQUI")) {{
+                alert("Para ativar o botão de atualização imediata, adicione o link do Google Script na variável WEBHOOK_ATUALIZAR_URL.");
+                return;
+            }}
+
+            btn.disabled = true;
+
+            // Dispara requisição assíncrona para a ponte
+            fetch(WEBHOOK_URL, {{ method: 'GET', mode: 'no-cors' }}).catch(() => {{}});
+
+            let segundos = 40;
+            btn.innerHTML = "<span>⏳</span> <span>Buscando dados na usina (" + segundos + "s)...</span>";
+
+            const interval = setInterval(() => {{
+                segundos--;
+                if (segundos <= 0) {{
+                    clearInterval(interval);
+                    btn.innerHTML = "<span>🔄</span> <span>Atualizando painel...</span>";
+                    window.location.reload();
+                }} else {{
+                    btn.innerHTML = "<span>⏳</span> <span>Buscando dados na usina (" + segundos + "s)...</span>";
+                }}
+            }}, 1000);
+        }}
+    </script>
 </body>
 </html>
 """
@@ -545,7 +620,7 @@ def main():
     estado["historico_dias"] = historico
 
     # ==========================================
-    # 2. COLETA DE DADOS NA HOYMILES (API + DOM + HISTÓRICO MENSAL)
+    # 2. COLETA DE DADOS NA HOYMILES
     # ==========================================
     captured_data = []
     auth_headers = {}
@@ -596,7 +671,7 @@ def main():
             js_dom = "() => ({ all_text: document.body.innerText || '' })"
             scraped_dom = page.evaluate(js_dom)
 
-            # Consulta ativa das APIs da Hoymiles incluindo Histórico Mensal
+            # Consulta ativa de APIs com Histórico Mensal
             js_apis = f"""
             async () => {{
                 let token = localStorage.getItem('token') || localStorage.getItem('access_token') || '';
@@ -733,7 +808,7 @@ def main():
         if today_kwh > 0:
             historico[data_str] = round(today_kwh, 2)
 
-    # Reconciliação inteligente: Se houver dias faltantes no histórico local mas o total do mês for oficial
+    # Reconciliação inteligente com dados oficiais do mês
     soma_atual_mes = sum(v for k, v in historico.items() if k.startswith(ano_mes_str) and k >= DATA_INICIO_OPERACAO)
     if month_kwh > soma_atual_mes and month_kwh > 0:
         dias_ativos = []
@@ -833,6 +908,7 @@ def main():
         "status_color": "#10b981" if is_online else "#94a3b8",
         "hora_atual": hora_str,
         "mes_nome": nome_mes,
+        "webhook_url": WEBHOOK_ATUALIZAR_URL,
         "real_power": fmt_decimal(real_power_val, 2),
         "eficiencia": fmt_br(eficiencia, 1),
         "today_str": today_display,
@@ -929,7 +1005,7 @@ def main():
         for num_s, d_ini, d_fim in semanas_config:
             tot_sem = 0.0
             
-            # Semanas 1 e 2 de Agosto (Anteriores a 20/08)
+            # Semanas anteriores à data de início (20/08)
             if ano_atual == ano_inicio_op and mes_atual == mes_inicio_op and d_fim < dia_inicio_op:
                 tag_status = "<i>(Pré-operação / Inativa)</i>"
                 tot_sem = 0.0
@@ -1022,7 +1098,7 @@ def main():
         salvar_estado(estado)
         return
 
-    # C) NOTIFICAÇÃO PERIÓDICA DE 30 MINUTOS (06h00 às 18h30)
+    # C) NOTIFICAÇÃO PERIÓDICA DIURNA (06h00 às 18h30)
     if 6 <= hora_int <= 18:
         dados_validos = (today_kwh > 0) or (real_power_val > 0) or bool(inversores_dict)
 
