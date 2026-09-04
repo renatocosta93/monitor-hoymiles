@@ -51,7 +51,7 @@
             0% { transform: scale(0.8); opacity: 0.8; }
             100% { transform: scale(1.6); opacity: 0; }
         }
-        .status-text { font-size: 13px; font-weight: 700; color: #10b981; }
+        .status-text { font-size: 13px; font-weight: 700; color: #94a3b8; }
         .location { color: var(--text-muted); font-size: 12px; margin-top: 6px; }
 
         .btn-sync-wrapper { margin-top: 14px; text-align: center; }
@@ -255,18 +255,16 @@
             <h1 class="title">☀️ Painel Solar Hoymiles</h1>
             <div class="status-container">
                 
-        <div class="tower-icon online" title="Usina Operando em Plena Geração">
+        <div class="tower-icon offline" title="Usina em Repouso / Sem Geração">
             <svg viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" width="34" height="34">
-                <path d="M32 4L18 60M32 4L46 60M23 24H41M19 40H45M26 12L38 12M12 60H52" stroke="#10b981" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-                <circle cx="32" cy="4" r="3" fill="#38bdf8"/>
-                <path d="M12 36L4 42M52 36L60 42M14 20L6 24M50 20L58 24" stroke="#f59e0b" stroke-width="2.5" stroke-linecap="round"/>
+                <path d="M32 4L18 60M32 4L46 60M23 24H41M19 40H45M26 12L38 12M12 60H52" stroke="#64748b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+                <circle cx="32" cy="4" r="3" fill="#64748b"/>
             </svg>
-            <span class="pulse-ring"></span>
         </div>
         
-                <span class="status-text">Online (Gerando)</span>
+                <span class="status-text">Repouso / Inoperante (Sem Sol)</span>
             </div>
-            <p class="location">📍 Vargem Grande Paulista - SP | Atualizado às 04/09/2026 - 17:01</p>
+            <p class="location">📍 Vargem Grande Paulista - SP | Atualizado às 04/09/2026 - 18:00</p>
             
             <div class="btn-sync-wrapper">
                 <button id="btnAtualizar" class="btn-sync" onclick="solicitarAtualizacao()">
@@ -277,8 +275,8 @@
 
         <div class="card power-card-compact">
             <div class="stat-label">Potência Instantânea de Geração</div>
-            <div class="power-val">32.40 <span style="font-size: 20px;">W</span></div>
-            <div class="power-sub">0,7% da capacidade instalada (4500 Wp)</div>
+            <div class="power-val">0.00 <span style="font-size: 20px;">W</span></div>
+            <div class="power-sub">0,0% da capacidade instalada (4500 Wp)</div>
         </div>
 
         <div class="farois-grid">
@@ -287,8 +285,8 @@
                 <div class="farol-info">
                     <span class="farol-title">Meta Diária</span>
                     <div class="farol-inline">
-                        <span class="farol-kwh-line">25,43 / 19,93 kWh</span>
-                        <span class="farol-pct-tag" style="color: #10b981;">127,6%</span>
+                        <span class="farol-kwh-line">25,47 / 19,93 kWh</span>
+                        <span class="farol-pct-tag" style="color: #10b981;">127,8%</span>
                     </div>
                 </div>
             </div>
@@ -316,13 +314,13 @@
         <div class="grid-cards">
             <div class="card">
                 <div class="stat-label">Geração de Hoje</div>
-                <div class="stat-val">25,43 kWh</div>
-                <div class="stat-sub">Economia: R$ 22,38 | Pico: 32 W</div>
+                <div class="stat-val">25,47 kWh</div>
+                <div class="stat-sub">Economia: R$ 22,41 | Pico: 0 W</div>
             </div>
             <div class="card">
                 <div class="stat-label">Acumulado no Mês</div>
                 <div class="stat-val">55,83 <span style="font-size: 14px;">kWh</span></div>
-                <div class="stat-sub">Economia: R$ 49,13 | 5,65 HSP</div>
+                <div class="stat-sub">Economia: R$ 49,13 | 5,66 HSP</div>
             </div>
         </div>
 
@@ -341,7 +339,7 @@
                 </div>
                 <div class="dtu-item">
                     <span class="dtu-item-title">Última Sincronização</span>
-                    <span class="dtu-item-val">🕒 04/09/2026 - 17:01</span>
+                    <span class="dtu-item-val">🕒 04/09/2026 - 18:00</span>
                     <span class="dtu-item-sub">Status: Nuvem Hoymiles OK</span>
                 </div>
             </div>
@@ -355,63 +353,63 @@
             <div class="topology-container">
                 <div class="topo-node-total">
                     <div class="topo-total-title">Total da Usina</div>
-                    <div class="topo-total-val">32.40 W</div>
+                    <div class="topo-total-val">0.00 W</div>
                 </div>
                 <div class="topo-branch-line"></div>
                 <div class="topo-inverters-wrapper">
                     
         <div class="topo-inverter-col">
             <div class="topo-inv-box">
-                <div class="topo-inv-pow">16.8 W</div>
+                <div class="topo-inv-pow">0.0 W</div>
                 <div class="topo-inv-sn">Inversor 1: 1424A384C2EA</div>
             </div>
             <div class="topo-panels-stack">
         
                 <div class="topo-panel-box">
                     <span class="topo-panel-id">📦 84C2EA-1</span>
-                    <span class="topo-panel-pow">8.1 W</span>
+                    <span class="topo-panel-pow">0.0 W</span>
                 </div>
             
                 <div class="topo-panel-box">
                     <span class="topo-panel-id">📦 84C2EA-2</span>
-                    <span class="topo-panel-pow">4.9 W</span>
+                    <span class="topo-panel-pow">0.0 W</span>
                 </div>
             
                 <div class="topo-panel-box">
                     <span class="topo-panel-id">📦 84C2EA-3</span>
-                    <span class="topo-panel-pow">4.2 W</span>
+                    <span class="topo-panel-pow">0.0 W</span>
                 </div>
             
                 <div class="topo-panel-box">
                     <span class="topo-panel-id">📦 84C2EA-4</span>
-                    <span class="topo-panel-pow">3.9 W</span>
+                    <span class="topo-panel-pow">0.0 W</span>
                 </div>
             </div></div>
         <div class="topo-inverter-col">
             <div class="topo-inv-box">
-                <div class="topo-inv-pow">15.6 W</div>
+                <div class="topo-inv-pow">0.0 W</div>
                 <div class="topo-inv-sn">Inversor 2: 1424A3849A18</div>
             </div>
             <div class="topo-panels-stack">
         
                 <div class="topo-panel-box">
                     <span class="topo-panel-id">📦 849A18-1</span>
-                    <span class="topo-panel-pow">6.5 W</span>
+                    <span class="topo-panel-pow">0.0 W</span>
                 </div>
             
                 <div class="topo-panel-box">
                     <span class="topo-panel-id">📦 849A18-2</span>
-                    <span class="topo-panel-pow">4.5 W</span>
+                    <span class="topo-panel-pow">0.0 W</span>
                 </div>
             
                 <div class="topo-panel-box">
                     <span class="topo-panel-id">📦 849A18-3</span>
-                    <span class="topo-panel-pow">3.9 W</span>
+                    <span class="topo-panel-pow">0.0 W</span>
                 </div>
             
                 <div class="topo-panel-box">
                     <span class="topo-panel-id">📦 849A18-4</span>
-                    <span class="topo-panel-pow">4.5 W</span>
+                    <span class="topo-panel-pow">0.0 W</span>
                 </div>
             </div></div>
                 </div>
