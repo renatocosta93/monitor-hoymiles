@@ -24,7 +24,7 @@
     "2026-09-04": 25.47
   },
   "data_bom_dia_enviado": "2026-09-04",
-  "data_fechamento_enviado": "2026-09-03",
+  "data_fechamento_enviado": "2026-09-04",
   "mensagens_do_dia": [],
   "mensagens_armazenadas": [
     251,
@@ -38,6 +38,8 @@
     259,
     260,
     261,
-    262
+    262,
+    263,
+    264
   ]
 }
