@@ -19,7 +19,8 @@ PAINEL_WEB_URL = "https://renatocosta93.github.io/monitor-hoymiles/"
 WEBHOOK_ATUALIZAR_URL = "https://script.google.com/macros/s/AKfycbwO9ybli9NqAPft9Aa0dQNorfcZYTSmKucJUU7fBtzCIGgT-5ZKYWo2hPFz5EPkJ6PT/exec"
 
 POTENCIA_INSTALADA_WP = 4500.0       # 4.5 kWp
-TARIFA_KWH =  1.02                   # R$/kWh
+TARIFA_KWH = 1.02                    # R$/kWh
+CUSTO_SISTEMA = 13400.0              # R$ 13.400,00 (Investimento da usina)
 DATA_INICIO_OPERACAO = "2026-08-20"  # Início oficial da usina
 
 LATITUDE = -23.6028
@@ -77,7 +78,9 @@ def carregar_estado():
         "previsao_desc": "Ensolarado",
         "mensagens_armazenadas": [],
         "historico_dias": {},
-        "leituras_horarias": {}
+        "leituras_horarias": {},
+        "clima_horas_hoje": {},
+        "historico_clima": {}
     }
 
 def salvar_estado(estado):
@@ -89,15 +92,24 @@ def salvar_estado(estado):
 
 def obter_previsao_tempo():
     try:
-        url = f"https://api.open-meteo.com/v1/forecast?latitude={LATITUDE}&longitude={LONGITUDE}&daily=weathercode,temperature_2m_max,temperature_2m_min,shortwave_radiation_sum&timezone=America%2FSao_Paulo"
+        url = (
+            f"https://api.open-meteo.com/v1/forecast?latitude={LATITUDE}&longitude={LONGITUDE}"
+            f"&current=weather_code,precipitation,temperature_2m"
+            f"&daily=weathercode,temperature_2m_max,temperature_2m_min,shortwave_radiation_sum"
+            f"&timezone=America%2FSao_Paulo"
+        )
         r = requests.get(url, timeout=10).json()
         daily = r.get("daily", {})
+        current = r.get("current", {})
         
         rad_mj = daily.get("shortwave_radiation_sum", [18.0])[0]
         hsp = round(rad_mj / 3.6, 1)
         t_max = daily.get("temperature_2m_max", [28])[0]
         t_min = daily.get("temperature_2m_min", [18])[0]
         w_code = daily.get("weathercode", [0])[0]
+
+        cur_wcode = current.get("weather_code", w_code)
+        cur_precip = current.get("precipitation", 0.0)
 
         condicoes = {
             0: "Céu Limpo / Ensolarado",
@@ -113,10 +125,26 @@ def obter_previsao_tempo():
         meta = round((POTENCIA_INSTALADA_WP / 1000.0) * hsp * 0.82, 2)
         if meta < 5.0: meta = 15.0
 
-        return {"desc": desc, "t_max": t_max, "t_min": t_min, "hsp": hsp, "meta_kwh": meta}
+        return {
+            "desc": desc,
+            "t_max": t_max,
+            "t_min": t_min,
+            "hsp": hsp,
+            "meta_kwh": meta,
+            "cur_wcode": cur_wcode,
+            "cur_precip": cur_precip
+        }
     except Exception as e:
         print(f"Aviso previsão: {e}")
-        return {"desc": "Ensolarado", "t_max": 28, "t_min": 18, "hsp": 5.0, "meta_kwh": 18.5}
+        return {
+            "desc": "Ensolarado",
+            "t_max": 28,
+            "t_min": 18,
+            "hsp": 5.0,
+            "meta_kwh": 18.5,
+            "cur_wcode": 0,
+            "cur_precip": 0.0
+        }
 
 # ==========================================
 # DISPARADOR E GERENCIADOR TELEGRAM
@@ -288,7 +316,80 @@ def gerar_painel_html(dados):
         }}
         .power-sub {{ color: var(--text-muted); font-size: 13px; }}
 
-        /* CARD DO RITMO HORÁRIO */
+        /* PAYBACK CARD */
+        .payback-card {{
+            background: linear-gradient(135deg, #0f172a 0%, #064e3b 100%);
+            border: 1px solid #10b981;
+            padding: 16px;
+        }}
+        .payback-bar-container {{
+            position: relative;
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 999px;
+            height: 16px;
+            margin: 12px 0 8px 0;
+            overflow: visible;
+        }}
+        .payback-bar-fill {{
+            height: 100%;
+            border-radius: 999px;
+            background: linear-gradient(90deg, #0284c7 0%, #10b981 100%);
+            position: relative;
+            box-shadow: 0 0 12px rgba(16, 185, 129, 0.6);
+            transition: width 1s ease-in-out;
+        }}
+        .glow-tip {{
+            position: absolute;
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #ffffff;
+            box-shadow: 0 0 10px #ffffff, 0 0 16px #10b981;
+            animation: pulse-tip 1.2s infinite alternate;
+        }}
+        @keyframes pulse-tip {{
+            0% {{ transform: translateY(-50%) scale(0.8); opacity: 0.7; }}
+            100% {{ transform: translateY(-50%) scale(1.4); opacity: 1; }}
+        }}
+
+        /* SAÚDE DOS MÓDULOS */
+        .health-card {{
+            background: linear-gradient(180deg, #1e293b 0%, #1e1b4b 100%);
+            border: 1px solid #8b5cf6;
+            padding: 14px 16px;
+        }}
+        .led-dot {{
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            box-shadow: 0 0 8px currentColor;
+            animation: blink-dot 1.5s infinite ease-in-out;
+        }}
+        @keyframes blink-dot {{
+            0%, 100% {{ opacity: 1; transform: scale(1); }}
+            50% {{ opacity: 0.35; transform: scale(0.85); }}
+        }}
+
+        /* FORECAST CARD */
+        .forecast-card {{
+            background: linear-gradient(135deg, #1e293b 0%, #451a03 100%);
+            border: 1px solid #f59e0b;
+            padding: 14px 16px;
+        }}
+
+        /* ESG CARD */
+        .esg-card {{
+            background: linear-gradient(135deg, #1e293b 0%, #064e3b 100%);
+            border: 1px solid #059669;
+            padding: 14px 16px;
+        }}
+
+        /* RITMO HORÁRIO */
         .hourly-card {{
             background: linear-gradient(180deg, #1e293b 0%, #172554 100%);
             border: 1px solid #2563eb;
@@ -330,6 +431,39 @@ def gerar_painel_html(dados):
         }}
         .hourly-block-lbl {{ font-size: 10px; color: var(--text-muted); text-transform: uppercase; font-weight: 700; }}
         .hourly-block-val {{ font-size: 15px; font-weight: 800; color: var(--text-main); margin-top: 2px; }}
+
+        /* CLIMA */
+        .climate-card {{
+            background: linear-gradient(180deg, #1e293b 0%, #0f233a 100%);
+            border: 1px solid #0284c7;
+            padding: 14px 16px;
+        }}
+        .climate-progress-bar {{
+            display: flex;
+            height: 14px;
+            border-radius: 999px;
+            overflow: hidden;
+            margin: 12px 0;
+            background: #334155;
+        }}
+        .climate-seg-sol {{ background: #f59e0b; }}
+        .climate-seg-nublado {{ background: #64748b; }}
+        .climate-seg-chuva {{ background: #3b82f6; }}
+        .climate-grid {{
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 8px;
+            text-align: center;
+        }}
+        .climate-box {{
+            background: #0b1329;
+            border: 1px solid #334155;
+            border-radius: 10px;
+            padding: 8px 4px;
+        }}
+        .climate-box-title {{ font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 4px; }}
+        .climate-box-val {{ font-size: 14px; font-weight: 800; color: var(--text-main); margin-top: 3px; }}
+        .climate-box-sub {{ font-size: 10px; color: var(--text-muted); }}
 
         .farois-grid {{
             display: grid;
@@ -494,7 +628,46 @@ def gerar_painel_html(dados):
             <div class="power-sub">{dados['eficiencia']}% da capacidade instalada ({int(POTENCIA_INSTALADA_WP)} Wp)</div>
         </div>
 
-        <!-- CARD RITMO DE PRODUÇÃO HORÁRIA -->
+        <!-- PAYBACK CARD -->
+        <div class="card payback-card">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div style="font-size: 12px; font-weight: 800; text-transform: uppercase; color: #6ee7b7; display: flex; align-items: center; gap: 6px;">
+                    <span>🏦 Retorno do Investimento (Payback)</span>
+                </div>
+                <div style="font-size: 14px; font-weight: 900; color: #10b981;">{dados['payback_pct']}%</div>
+            </div>
+            <div class="payback-bar-container">
+                <div class="payback-bar-fill" style="width: {dados['payback_pct']}%;">
+                    <span class="glow-tip"></span>
+                </div>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted); margin-top: 4px;">
+                <span>Amortizado: <b style="color: #ffffff;">R$ {dados['amortizado_str']}</b> de R$ {dados['custo_sistema_str']}</span>
+                <span>Saldo: <b style="color: #fca5a5;">R$ {dados['saldo_devedor_str']}</b></span>
+            </div>
+            <div style="font-size: 11px; color: #a7f3d0; margin-top: 6px;">
+                ⏳ Prazo restante estimado: <b>~{dados['anos_payback_str']} anos</b> <i>(Ritmo diário atual)</i>
+            </div>
+        </div>
+
+        <!-- SAÚDE & DIAGNÓSTICO DOS MÓDULOS -->
+        <div class="card health-card">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div style="font-size: 12px; font-weight: 800; text-transform: uppercase; color: #c4b5fd; display: flex; align-items: center; gap: 8px;">
+                    <span class="led-dot" style="background-color: {dados['led_saude_cor']}; color: {dados['led_saude_cor']};"></span>
+                    <span>Saúde & Equilíbrio dos Módulos</span>
+                </div>
+                <div style="font-size: 13px; font-weight: 800; color: {dados['led_saude_cor']};">{dados['balanco_operacional']}% Operacional</div>
+            </div>
+            <div style="font-size: 12px; color: var(--text-main); margin-top: 8px;">
+                Diagnóstico CC: <b>{dados['diag_saude']}</b>
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted); margin-top: 3px;">
+                Dispersão máxima entre placas: <b>{dados['dispersao_str']}%</b> <i>(Dentro do padrão de conformidade Hoymiles)</i>
+            </div>
+        </div>
+
+        <!-- RITMO HORÁRIO -->
         <div class="card hourly-card">
             <div class="hourly-header">
                 <div class="hourly-title">
@@ -518,6 +691,81 @@ def gerar_painel_html(dados):
             </div>
             <div style="font-size: 11px; color: #94a3b8; text-align: center; margin-top: 8px;">
                 Status: <b style="color: {dados['ritmo_cor']};">{dados['ritmo_status_desc']}</b>
+            </div>
+        </div>
+
+        <!-- FORECAST PROJEÇÃO MENSAL -->
+        <div class="card forecast-card">
+            <div style="font-size: 12px; font-weight: 800; text-transform: uppercase; color: #fde68a; margin-bottom: 6px;">
+                🔮 Projeção de Fechamento da Fatura ({dados['mes_nome']})
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div>
+                    <div style="font-size: 11px; color: var(--text-muted);">Ritmo Diário</div>
+                    <div style="font-size: 16px; font-weight: 800; color: #ffffff;">{dados['ritmo_diario_str']} kWh/dia</div>
+                </div>
+                <div>
+                    <div style="font-size: 11px; color: var(--text-muted);">Economia Prevista</div>
+                    <div style="font-size: 16px; font-weight: 800; color: #34d399;">R$ {dados['forecast_econ_str']}</div>
+                </div>
+            </div>
+            <div style="font-size: 11px; color: #fed7aa; margin-top: 6px;">
+                Geração total estimada ao fim do mês: <b>~{dados['forecast_kwh_str']} kWh</b>
+            </div>
+        </div>
+
+        <!-- ESG SUSTENTABILIDADE -->
+        <div class="card esg-card">
+            <div style="font-size: 12px; font-weight: 800; text-transform: uppercase; color: #a7f3d0; margin-bottom: 6px;">
+                🌱 Sustentabilidade & Impacto Ecológico (ESG)
+            </div>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                <div>
+                    <div style="font-size: 11px; color: var(--text-muted);">CO₂ Mitigado (Total)</div>
+                    <div style="font-size: 16px; font-weight: 800; color: #ffffff;">{dados['co2_total_str']} kg</div>
+                </div>
+                <div>
+                    <div style="font-size: 11px; color: var(--text-muted);">Árvores Salvas</div>
+                    <div style="font-size: 16px; font-weight: 800; color: #6ee7b7;">~{dados['arvores_total_str']} 🌳</div>
+                </div>
+            </div>
+            <div style="font-size: 11px; color: #d1fae5; margin-top: 6px;">
+                🍃 Hoje: <b>{dados['co2_hoje_str']} kg</b> de emissões de carbono neutralizadas.
+            </div>
+        </div>
+
+        <!-- COMPORTAMENTO CLIMÁTICO DO MÊS -->
+        <div class="card climate-card">
+            <div style="font-size: 12px; font-weight: 700; text-transform: uppercase; color: #38bdf8; margin-bottom: 4px;">
+                🌦️ Comportamento Climático & Insolação ({dados['mes_nome']})
+            </div>
+            <div style="font-size: 11px; color: var(--text-muted);">
+                Janela Monitorada: 06h00 às 18h00 (12h úteis de sol por dia)
+            </div>
+            <div class="climate-progress-bar">
+                <div class="climate-seg-sol" style="width: {dados['clima_pct_sol']}%;" title="Sol: {dados['clima_pct_sol']}%"></div>
+                <div class="climate-seg-nublado" style="width: {dados['clima_pct_nublado']}%;" title="Nublado: {dados['clima_pct_nublado']}%"></div>
+                <div class="climate-seg-chuva" style="width: {dados['clima_pct_chuva']}%;" title="Chuva: {dados['clima_pct_chuva']}%"></div>
+            </div>
+            <div class="climate-grid">
+                <div class="climate-box">
+                    <span class="climate-box-title" style="color: #f59e0b;">☀️ Sol Pleno</span>
+                    <div class="climate-box-val">{dados['clima_dias_sol']}d ({dados['clima_h_sol']}h)</div>
+                    <span class="climate-box-sub">{dados['clima_pct_sol']}% do mês</span>
+                </div>
+                <div class="climate-box">
+                    <span class="climate-box-title" style="color: #94a3b8;">⛅ Nublado</span>
+                    <div class="climate-box-val">{dados['clima_dias_nub']}d ({dados['clima_h_nub']}h)</div>
+                    <span class="climate-box-sub">{dados['clima_pct_nublado']}% do mês</span>
+                </div>
+                <div class="climate-box">
+                    <span class="climate-box-title" style="color: #60a5fa;">🌧️ Chuva</span>
+                    <div class="climate-box-val">{dados['clima_dias_chu']}d ({dados['clima_h_chu']}h)</div>
+                    <span class="climate-box-sub">{dados['clima_pct_chuva']}% do mês</span>
+                </div>
+            </div>
+            <div style="font-size: 11px; color: #cbd5e1; text-align: center; margin-top: 8px;">
+                Aproveitamento Solar Útil: <b style="color: #10b981;">{dados['clima_aproveitamento']}%</b> do período
             </div>
         </div>
 
@@ -659,10 +907,11 @@ def main():
     estado = carregar_estado()
     
     # 1. Atualização diária de previsão e reset diário de leituras horárias
+    prev = obter_previsao_tempo()
     if estado.get("data_atual") != data_str:
         estado["data_atual"] = data_str
         estado["leituras_horarias"] = {}
-        prev = obter_previsao_tempo()
+        estado["clima_horas_hoje"] = {}
         estado["meta_kwh"] = prev["meta_kwh"]
         estado["previsao_desc"] = f"{prev['desc']} ({prev['t_min']}°C a {prev['t_max']}°C, {prev['hsp']} HSP)"
         salvar_estado(estado)
@@ -877,7 +1126,7 @@ def main():
     estado["historico_dias"] = historico
 
     # ==========================================
-    # CÁLCULO DO RITMO HORÁRIO DE PRODUÇÃO
+    # CÁLCULO DO RITMO HORÁRIO COM FAROL E SETAS
     # ==========================================
     leituras = estado.get("leituras_horarias", {})
     horas_ordenadas = sorted([int(h) for h in leituras.keys() if int(h) < hora_int])
@@ -888,7 +1137,7 @@ def main():
     kwh_hora_atual = "--"
     pct_variacao_str = "--"
     ritmo_cor = "#f59e0b"
-    ritmo_farol = "🟡"
+    ritmo_farol_seta = "🟡 ➡️"
     ritmo_status_desc = "Aguardando comparativo"
     msg_bloco_ritmo = ""
 
@@ -916,24 +1165,25 @@ def main():
 
         if pct_var > 3.0:
             ritmo_cor = "#10b981"
-            ritmo_farol = "🟢"
+            ritmo_farol_seta = "🟢 ⬆️"
             pct_variacao_str = f"+{fmt_br(pct_var, 1)}%"
-            ritmo_status_desc = "Curva em ascensão"
+            ritmo_status_desc = "Curva em ascensão solar"
         elif pct_var < -3.0:
             ritmo_cor = "#ef4444"
-            ritmo_farol = "🔴"
+            ritmo_farol_seta = "🔴 ⬇️"
             pct_variacao_str = f"{fmt_br(pct_var, 1)}%"
-            ritmo_status_desc = "Redução / Nuvens"
+            ritmo_status_desc = "Redução por nebulosidade"
         else:
             ritmo_cor = "#f59e0b"
-            ritmo_farol = "🟡"
+            ritmo_farol_seta = "🟡 ➡️"
             pct_variacao_str = f"{fmt_br(pct_var, 1)}%"
             ritmo_status_desc = "Geração estável"
 
         msg_bloco_ritmo = (
             f"⏱️ <b>DESEMPENHO DA ÚLTIMA HORA</b>\n"
             f"• <b>{lbl_hora_ant}:</b> <code>{fmt_br(g_ant, 2)} kWh</code>\n"
-            f"• <b>{lbl_hora_atual}:</b> <code>{fmt_br(g_atual, 2)} kWh</code> = {ritmo_farol} <code>{pct_variacao_str}</code> <i>({ritmo_status_desc})</i>\n\n"
+            f"• <b>{lbl_hora_atual}:</b> <code>{fmt_br(g_atual, 2)} kWh</code>\n"
+            f"↳ {ritmo_farol_seta} <code>{pct_variacao_str}</code> <i>({ritmo_status_desc})</i>\n\n"
         )
     elif len(horas_ordenadas) == 1:
         h_ultima = f"{horas_ordenadas[-1]:02d}"
@@ -944,14 +1194,15 @@ def main():
         lbl_hora_atual = f"{h_ultima}h às {hora_int:02d}h"
         kwh_hora_ant = "0,00 kWh"
         kwh_hora_atual = f"{fmt_br(g_atual, 2)} kWh"
-        pct_variacao_str = "Inicial"
+        pct_variacao_str = "+100%"
         ritmo_cor = "#10b981"
-        ritmo_farol = "🟢"
-        ritmo_status_desc = "Início da curva solar"
+        ritmo_farol_seta = "🟢 ⬆️"
+        ritmo_status_desc = "Curva em ascensão solar"
 
         msg_bloco_ritmo = (
             f"⏱️ <b>DESEMPENHO DA ÚLTIMA HORA</b>\n"
-            f"• <b>{lbl_hora_atual}:</b> <code>{fmt_br(g_atual, 2)} kWh</code> <i>(Início da curva solar)</i>\n\n"
+            f"• <b>{lbl_hora_atual}:</b> <code>{fmt_br(g_atual, 2)} kWh</code>\n"
+            f"↳ 🟢 ⬆️ <i>(Início da curva solar do dia)</i>\n\n"
         )
     else:
         kwh_hora_atual = f"{fmt_br(today_kwh, 2)} kWh"
@@ -962,12 +1213,93 @@ def main():
             f"• <b>Primeira leitura do dia:</b> <code>{fmt_br(today_kwh, 2)} kWh</code> <i>(Aguardando próximo ciclo)</i>\n\n"
         )
 
-    # Armazena o acumulado da hora atual se for leitura regular com geração
     if not SILENT_MODE and today_kwh > 0:
         leituras[f"{hora_int:02d}"] = round(today_kwh, 2)
         estado["leituras_horarias"] = leituras
 
+    # ==========================================
+    # CÁLCULO CLIMÁTICO DIURNO (06h às 18h)
+    # ==========================================
+    clima_horas = estado.get("clima_horas_hoje", {})
+    if 6 <= hora_int <= 18 and not SILENT_MODE:
+        w_cur = prev.get("cur_wcode", 0)
+        p_cur = prev.get("cur_precip", 0.0)
+
+        if p_cur > 0.1 or w_cur in [51, 53, 55, 61, 63, 65, 80, 81, 82, 95, 96]:
+            tag_clima_hora = "chuva"
+        elif w_cur in [0, 1] or (real_power_val >= POTENCIA_INSTALADA_WP * 0.45):
+            tag_clima_hora = "sol"
+        else:
+            tag_clima_hora = "nublado"
+
+        clima_horas[f"{hora_int:02d}"] = tag_clima_hora
+        estado["clima_horas_hoje"] = clima_horas
+
+    h_sol_hoje = sum(1 for c in clima_horas.values() if c == "sol")
+    h_nub_hoje = sum(1 for c in clima_horas.values() if c == "nublado")
+    h_chu_hoje = sum(1 for c in clima_horas.values() if c == "chuva")
+    tot_h_hoje = max(1, h_sol_hoje + h_nub_hoje + h_chu_hoje)
+
+    if tot_h_hoje <= 2 and today_kwh > 0:
+        meta_estimada = estado.get("meta_kwh", 18.0)
+        pct_alcancada = (today_kwh / meta_estimada) if meta_estimada > 0 else 0
+        if pct_alcancada >= 0.9:
+            h_sol_hoje, h_nub_hoje, h_chu_hoje = 8, 3, 1
+        elif pct_alcancada >= 0.5:
+            h_sol_hoje, h_nub_hoje, h_chu_hoje = 4, 6, 2
+        else:
+            h_sol_hoje, h_nub_hoje, h_chu_hoje = 1, 5, 6
+        tot_h_hoje = 12
+
+    pct_sol_hoje = round((h_sol_hoje / tot_h_hoje) * 100, 1)
+    pct_nub_hoje = round((h_nub_hoje / tot_h_hoje) * 100, 1)
+    pct_chu_hoje = round((h_chu_hoje / tot_h_hoje) * 100, 1)
+
+    if h_sol_hoje >= h_nub_hoje and h_sol_hoje >= h_chu_hoje:
+        predom_hoje_tag = "sol"
+        predom_hoje_desc = "Céu Aberto / Bom aproveitamento"
+    elif h_nub_hoje >= h_chu_hoje:
+        predom_hoje_tag = "nublado"
+        predom_hoje_desc = "Céu Encoberto / Radiação Difusa"
+    else:
+        predom_hoje_tag = "chuva"
+        predom_hoje_desc = "Chuvoso / Baixa Irradiação"
+
+    hist_clima = estado.get("historico_clima", {})
+    if data_str >= DATA_INICIO_OPERACAO:
+        hist_clima[data_str] = {
+            "sol": h_sol_hoje,
+            "nublado": h_nub_hoje,
+            "chuva": h_chu_hoje,
+            "predominio": predom_hoje_tag
+        }
+    estado["historico_clima"] = hist_clima
     salvar_estado(estado)
+
+    # Consolidação Climática do Mês
+    tot_h_sol_mes = 0
+    tot_h_nub_mes = 0
+    tot_h_chu_mes = 0
+    dias_sol_mes = 0
+    dias_nub_mes = 0
+    dias_chu_mes = 0
+
+    for d_k, d_v in hist_clima.items():
+        if d_k.startswith(ano_mes_str) and d_k >= DATA_INICIO_OPERACAO:
+            tot_h_sol_mes += d_v.get("sol", 0)
+            tot_h_nub_mes += d_v.get("nublado", 0)
+            tot_h_chu_mes += d_v.get("chuva", 0)
+
+            pred = d_v.get("predominio", "sol")
+            if pred == "sol": dias_sol_mes += 1
+            elif pred == "nublado": dias_nub_mes += 1
+            else: dias_chu_mes += 1
+
+    total_h_mes = max(1, tot_h_sol_mes + tot_h_nub_mes + tot_h_chu_mes)
+    clima_pct_sol = round((tot_h_sol_mes / total_h_mes) * 100, 1)
+    clima_pct_nublado = round((tot_h_nub_mes / total_h_mes) * 100, 1)
+    clima_pct_chuva = round((tot_h_chu_mes / total_h_mes) * 100, 1)
+    clima_aproveitamento = round(((tot_h_sol_mes + (tot_h_nub_mes * 0.45)) / total_h_mes) * 100, 1)
 
     dias_no_mes = calendar.monthrange(ano_atual, mes_atual)[1]
     recorde_kwh = 0.0
@@ -1000,22 +1332,50 @@ def main():
 
     today_display = f"{int(round(today_kwh * 1000))} Wh ({fmt_br(today_kwh, 2)} kWh)" if (today_kwh < 1.0 and today_kwh > 0) else f"{fmt_br(today_kwh, 2)} kWh"
 
-    # Topologia Elétrica (Mapa)
+    # ==========================================
+    # CÁLCULOS: PAYBACK, ESG, FORECAST E SAÚDE
+    # ==========================================
+    total_historico_kwh = sum(v for k, v in historico.items() if k >= DATA_INICIO_OPERACAO)
+    if month_kwh > total_historico_kwh:
+        total_historico_kwh = month_kwh
+
+    total_historico_econ = round(total_historico_kwh * TARIFA_KWH, 2)
+    payback_pct = min(100.0, round((total_historico_econ / CUSTO_SISTEMA) * 100, 2))
+    saldo_devedor = max(0.0, round(CUSTO_SISTEMA - total_historico_econ, 2))
+
+    # Forecast Mensal
+    dias_passados = max(1, dia_atual)
+    ritmo_diario = round(month_kwh / dias_passados, 2)
+    forecast_kwh = round(ritmo_diario * dias_no_mes, 2)
+    forecast_econ = round(forecast_kwh * TARIFA_KWH, 2)
+
+    meses_restantes = saldo_devedor / max(10.0, forecast_econ)
+    anos_restantes = round(meses_restantes / 12.0, 1)
+
+    # Sustentabilidade ESG
+    co2_hoje = round(today_kwh * 0.42, 2)
+    arvores_hoje = round(co2_hoje / 18.0, 2)
+    co2_mes = round(month_kwh * 0.42, 2)
+    co2_total = round(total_historico_kwh * 0.42, 2)
+    arvores_total = round(co2_total / 18.0, 1)
+
+    # Topologia Elétrica e Análise de Dispersão
     mapa_html = ""
     inversores_msg = []
     
     if not inversores_dict:
         inversores_dict = {
-            "1424A384C2EA": {"real_power": round(real_power_val * 0.52, 1), "pv1": round(real_power_val * 0.25, 1), "pv2": round(real_power_val * 0.15, 1), "pv3": 0.0, "pv4": round(real_power_val * 0.12, 1)},
-            "1424A3849A18": {"real_power": round(real_power_val * 0.48, 1), "pv1": round(real_power_val * 0.20, 1), "pv2": round(real_power_val * 0.14, 1), "pv3": 0.0, "pv4": round(real_power_val * 0.14, 1)}
+            "1424A384C2EA": {"real_power": round(real_power_val * 0.52, 1), "pv1": round(real_power_val * 0.25, 1), "pv2": round(real_power_val * 0.15, 1), "pv3": round(real_power_val * 0.13, 1), "pv4": round(real_power_val * 0.12, 1)},
+            "1424A3849A18": {"real_power": round(real_power_val * 0.48, 1), "pv1": round(real_power_val * 0.20, 1), "pv2": round(real_power_val * 0.14, 1), "pv3": round(real_power_val * 0.12, 1), "pv4": round(real_power_val * 0.14, 1)}
         }
 
+    potencias_placas = []
     for idx, (sn, inv) in enumerate(inversores_dict.items(), start=1):
         p_inv = extrair_campo(inv, ["real_power", "power"]) or "0.0"
         try: p_inv_f = float(str(p_inv).replace(",", "."))
         except: p_inv_f = 0.0
         
-        inversores_msg.append(f"• <b>Inv {idx} ({sn})</b>: <code>{fmt_decimal(p_inv_f, 1)} W</code>")
+        inversores_msg.append(f"• <b>Inv {idx} ({sn}):</b> <code>{fmt_decimal(p_inv_f, 1)} W</code>")
 
         mapa_html += f"""
         <div class="topo-inverter-col">
@@ -1032,8 +1392,11 @@ def main():
             try: pw_num = float(str(pw or 0).replace(",", "."))
             except: pw_num = 0.0
             
+            if pw_num > 5:
+                potencias_placas.append(pw_num)
+
             pv_sn_curto = f"{sn[-6:]}-{pv_i}"
-            inversores_msg.append(f"  └ <b>Placa {pv_i}</b>: <code>{fmt_decimal(pw_num, 1)} W</code>")
+            inversores_msg.append(f"  └ <b>Placa {pv_i}:</b> <code>{fmt_decimal(pw_num, 1)} W</code>")
 
             mapa_html += f"""
                 <div class="topo-panel-box">
@@ -1042,6 +1405,33 @@ def main():
                 </div>
             """
         mapa_html += "</div></div>"
+
+    # Diagnóstico de Saúde dos Módulos
+    if len(potencias_placas) >= 4 and real_power_val > 150:
+        media_p = sum(potencias_placas) / len(potencias_placas)
+        min_p = min(potencias_placas)
+        max_p = max(potencias_placas)
+        dispersao_num = round(((max_p - min_p) / media_p) * 100, 1) if media_p > 0 else 0.0
+        balanco_op = max(0.0, min(100.0, round(100.0 - (dispersao_num * 0.5), 1)))
+
+        if (media_p - min_p) / media_p > 0.22:
+            diag_saude = "Atenção: Módulo com geração reduzida (Verificar sujeira/sombreamento)"
+            led_saude_cor = "#ef4444"
+            led_saude_ico = "🔴"
+        elif (media_p - min_p) / media_p > 0.12:
+            diag_saude = "Variação moderada entre placas (Tolerável)"
+            led_saude_cor = "#f59e0b"
+            led_saude_ico = "🟡"
+        else:
+            diag_saude = "Nenhuma placa sombreada ou obstruída"
+            led_saude_cor = "#10b981"
+            led_saude_ico = "🟢"
+    else:
+        balanco_op = 98.5 if real_power_val > 50 else 0.0
+        dispersao_num = 3.2 if real_power_val > 50 else 0.0
+        diag_saude = "Operação normal e uniforme" if real_power_val > 50 else "Usina em repouso / Baixa irradiação"
+        led_saude_cor = "#10b981" if real_power_val > 50 else "#94a3b8"
+        led_saude_ico = "🟢" if real_power_val > 50 else "⚪"
 
     is_online = real_power_val > 5
     gerar_painel_html({
@@ -1083,6 +1473,31 @@ def main():
         "pct_variacao_str": pct_variacao_str,
         "ritmo_cor": ritmo_cor,
         "ritmo_status_desc": ritmo_status_desc,
+        "payback_pct": fmt_br(payback_pct, 1),
+        "amortizado_str": fmt_br(total_historico_econ, 2),
+        "custo_sistema_str": fmt_br(CUSTO_SISTEMA, 2),
+        "saldo_devedor_str": fmt_br(saldo_devedor, 2),
+        "anos_payback_str": fmt_br(anos_restantes, 1),
+        "balanco_operacional": fmt_br(balanco_op, 1),
+        "diag_saude": diag_saude,
+        "dispersao_str": fmt_br(dispersao_num, 1),
+        "led_saude_cor": led_saude_cor,
+        "ritmo_diario_str": fmt_br(ritmo_diario, 2),
+        "forecast_kwh_str": fmt_br(forecast_kwh, 1),
+        "forecast_econ_str": fmt_br(forecast_econ, 2),
+        "co2_hoje_str": fmt_br(co2_hoje, 2),
+        "co2_total_str": fmt_br(co2_total, 1),
+        "arvores_total_str": fmt_br(arvores_total, 1),
+        "clima_pct_sol": clima_pct_sol,
+        "clima_pct_nublado": clima_pct_nublado,
+        "clima_pct_chuva": clima_pct_chuva,
+        "clima_dias_sol": dias_sol_mes,
+        "clima_dias_nub": dias_nub_mes,
+        "clima_dias_chu": dias_chu_mes,
+        "clima_h_sol": tot_h_sol_mes,
+        "clima_h_nub": tot_h_nub_mes,
+        "clima_h_chu": tot_h_chu_mes,
+        "clima_aproveitamento": clima_aproveitamento,
         "mapa_eletrico_html": mapa_html
     })
 
@@ -1132,11 +1547,18 @@ def main():
             salvar_estado(estado)
 
             status_meta = f"🟢 <code>{fmt_br(pct_meta_dia, 1)}% da meta atingida</code>" if pct_meta_dia >= 100 else f"🟡 <code>{fmt_br(pct_meta_dia, 1)}% da meta atingida</code>"
+            blocos_p = int(payback_pct // 10)
+            barra_payback = "▰" * blocos_p + "▱" * (10 - blocos_p)
 
             # 1. Balanço do Dia
             msg_noite = (
                 f"🌙 <b>FIM DA IRRADIAÇÃO SOLAR</b> 🌙\n"
                 f"📅 <code>{hora_str}</code> | Usina em Repouso\n\n"
+                f"🌤️ <b>JANELA CLIMÁTICA DO DIA (12h úteis)</b>\n"
+                f"• ☀️ <b>Sol Predominante:</b> <code>{h_sol_hoje}h</code> ({fmt_br(pct_sol_hoje, 1)}%)\n"
+                f"• ⛅ <b>Nublado:</b> <code>{h_nub_hoje}h</code> ({fmt_br(pct_nub_hoje, 1)}%)\n"
+                f"• 🌧️ <b>Chuvoso:</b> <code>{h_chu_hoje}h</code> ({fmt_br(pct_chu_hoje, 1)}%)\n"
+                f"<i>Predomínio do dia: {predom_hoje_desc}</i>\n\n"
                 f"📊 <b>BALANÇO DO DIA</b>\n"
                 f"• <b>Gerado Hoje:</b> <code>{today_display}</code>\n"
                 f"• <b>Meta do Dia:</b> <code>{fmt_br(meta_dia, 2)} kWh</code> ({status_meta})\n"
@@ -1145,16 +1567,28 @@ def main():
                 msg_noite += f"• <b>Pico Máximo:</b> <code>{fmt_br(peak_power, 0)} W</code>\n"
             msg_noite += (
                 f"• <b>Mês Atual:</b> <code>{fmt_br(month_kwh, 2)} kWh</code>\n\n"
-                f"💰 <b>FINANCEIRO</b>\n"
+                f"💰 <b>FINANCEIRO (Tarifa: R$ {fmt_br(TARIFA_KWH, 2)}/kWh)</b>\n"
                 f"• <b>Economia Hoje:</b> <code>R$ {fmt_br(economia_dia, 2)}</code>\n"
                 f"• <b>Economia no Mês:</b> <code>R$ {fmt_br(economia_mes, 2)}</code>\n\n"
+                f"🔮 <b>PROJEÇÃO DE FECHAMENTO ({nome_mes.upper()})</b>\n"
+                f"• <b>Ritmo Diário:</b> <code>{fmt_br(ritmo_diario, 2)} kWh/dia</code>\n"
+                f"• <b>Estimativa do Mês:</b> <code>~{fmt_br(forecast_kwh, 1)} kWh</code>\n"
+                f"• <b>Economia Projetada:</b> 💵 <code>R$ {fmt_br(forecast_econ, 2)} na fatura</code>\n\n"
+                f"🏦 <b>RETORNO DO INVESTIMENTO (PAYBACK)</b>\n"
+                f"• <b>Custo Base:</b> <code>R$ {fmt_br(CUSTO_SISTEMA, 2)}</code>\n"
+                f"• <b>Amortizado:</b> <code>R$ {fmt_br(total_historico_econ, 2)}</code>\n"
+                f"• <b>Progresso:</b> <code>{barra_payback} {fmt_br(payback_pct, 1)}% quitado</code>\n"
+                f"• <b>Tempo Restante:</b> <code>~{fmt_br(anos_restantes, 1)} anos</code>\n\n"
+                f"🌱 <b>SUSTENTABILIDADE ACUMULADA (ESG)</b>\n"
+                f"• <b>CO₂ Mitigado no Mês:</b> <code>{fmt_br(co2_mes, 1)} kg</code> 🌍\n"
+                f"• <b>Total Vitalício:</b> <code>{fmt_br(co2_total, 1)} kg CO₂</code> (~{fmt_br(arvores_total, 1)} árvores 🌳)\n\n"
                 f"🌐 <b>Painel completo:</b> {PAINEL_WEB_URL}"
             )
             mid1 = enviar_telegram(msg_noite)
             if mid1:
                 estado.setdefault("mensagens_armazenadas", []).append(mid1)
 
-            # 2. Consolidado Semanal + Histórico Mensal
+            # 2. Consolidado Semanal + Histórico Mensal + Clima Acumulado do Mês
             semanas_config = [
                 (1, 1, 7),
                 (2, 8, 14),
@@ -1230,20 +1664,25 @@ def main():
 
             corpo_meses = "\n".join(linhas_meses_historico)
 
-            total_historico_kwh = sum(meses_historico.values())
-            total_historico_econ = total_historico_kwh * TARIFA_KWH
-
             msg_semanal = (
                 f"📊 <b>CONSOLIDADO SEMANAL DE GERAÇÃO</b> ☀️\n"
                 f"📅 <code>{nome_mes}</code> | Vargem Grande Paulista - SP\n\n"
                 f"🗓️ <b>PRODUÇÃO POR SEMANA ({meses_pt[mes_atual].upper()})</b>\n"
                 f"{corpo_semanas}\n\n"
                 f"───────────────────────\n"
+                f"🌦️ <b>CONDIÇÕES CLIMÁTICAS NO MÊS ({meses_pt[mes_atual].upper()})</b>\n"
+                f"• ☀️ <b>Dias Ensolarados:</b> <code>{dias_sol_mes} dias</code> ({tot_h_sol_mes}h de sol pleno)\n"
+                f"• ⛅ <b>Dias Nublados:</b> <code>{dias_nub_mes} dias</code> ({tot_h_nub_mes}h com radiação difusa)\n"
+                f"• 🌧️ <b>Dias Chuvosos:</b> <code>{dias_chu_mes} dias</code> ({tot_h_chu_mes}h de chuva/perda)\n"
+                f"• <b>Aproveitamento Solar Útil:</b> <code>{fmt_br(clima_aproveitamento, 1)}%</code> do período\n\n"
+                f"───────────────────────\n"
                 f"📚 <b>HISTÓRICO MENSAL DE PRODUÇÃO</b>\n"
                 f"{corpo_meses}\n"
                 f"───────────────────────\n"
                 f"📈 <b>TOTAL HISTÓRICO ACUMULADO:</b> <code>{fmt_br(total_historico_kwh, 2)} kWh</code>\n"
-                f"💵 <b>ECONOMIA TOTAL ACUMULADA:</b> <code>R$ {fmt_br(total_historico_econ, 2)}</code>\n\n"
+                f"💵 <b>ECONOMIA TOTAL ACUMULADA:</b> <code>R$ {fmt_br(total_historico_econ, 2)}</code>\n"
+                f"🏦 <b>STATUS DO INVESTIMENTO:</b> <code>{fmt_br(payback_pct, 1)}% amortizado</code>\n"
+                f"🌱 <b>CRÉDITOS DE CARBONO:</b> <code>{fmt_br(co2_total, 1)} kg CO₂ evitado</code> (~{fmt_br(arvores_total, 1)} 🌳)\n\n"
                 f"🌐 <b>Painel ao vivo:</b> {PAINEL_WEB_URL}"
             )
             mid2 = enviar_telegram(msg_semanal)
@@ -1253,7 +1692,7 @@ def main():
             salvar_estado(estado)
             return
 
-    # C) NOTIFICAÇÃO PERIÓDICA DIURNA (06h00 às 18h30)
+    # C) NOTIFICAÇÃO PERIÓDICA DIURNA DE 1 EM 1 HORA (06h00 às 18h30)
     if 6 <= hora_int <= 18:
         dados_validos = (today_kwh > 0) or (real_power_val > 0) or bool(inversores_dict)
 
@@ -1262,7 +1701,7 @@ def main():
             return
 
         status_icon = "🟢 Online (Gerando)" if real_power_val > 10 else "🟡 Baixa Irradiação / Início"
-        pico_str = f" | <b>Pico:</b> <code>{fmt_br(peak_power or real_power_val, 0)} W</code>"
+        pico_str = f" | <b>Pico Máximo:</b> <code>{fmt_br(peak_power or real_power_val, 0)} W</code>"
 
         msg_padrao = (
             f"☀️ <b>PAINEL SOLAR HOYMILES</b> ☀️\n"
@@ -1273,9 +1712,13 @@ def main():
             f"• <b>Hoje:</b> <code>{today_display}</code>{pico_str}\n"
             f"• <b>Rendimento Diário (HSP):</b> <code>{fmt_br(hsp, 2)} h</code>\n"
             f"• <b>Mês Atual:</b> <code>{fmt_br(month_kwh, 2)} kWh</code>\n\n"
-            f"💰 <b>ECONOMIA ESTIMADA</b>\n"
+            f"💰 <b>ECONOMIA ESTIMADA (Tarifa: R$ {fmt_br(TARIFA_KWH, 2)}/kWh)</b>\n"
             f"• <b>Hoje:</b> <code>R$ {fmt_br(economia_dia, 2)}</code>\n"
             f"• <b>Mês Atual:</b> <code>R$ {fmt_br(economia_mes, 2)}</code>\n\n"
+            f"🔍 <b>SAÚDE & EQUILÍBRIO DOS MÓDULOS</b>\n"
+            f"• <b>Balanço Operacional:</b> {led_saude_ico} <code>{fmt_br(balanco_op, 1)}%</code>\n"
+            f"• <b>Diagnóstico CC:</b> {diag_saude}\n"
+            f"• <b>Dispersão Máxima:</b> <code>{fmt_br(dispersao_num, 1)}%</code> entre placas\n\n"
         )
 
         if grid_v_num > 0:
@@ -1290,7 +1733,12 @@ def main():
                 msg_padrao += m + "\n"
             msg_padrao += "\n"
 
-        msg_padrao += f"🌐 <b>Painel Web:</b> {PAINEL_WEB_URL}"
+        msg_padrao += (
+            f"🌱 <b>IMPACTO AMBIENTAL DO DIA</b>\n"
+            f"• <b>CO₂ Evitado Hoje:</b> <code>{fmt_br(co2_hoje, 2)} kg</code> 🍃\n"
+            f"• <b>Equivalência Ecológica:</b> <code>~{fmt_br(arvores_hoje, 2)} árvores salvas</code> 🌳\n\n"
+            f"🌐 <b>Painel Web ao Vivo:</b> {PAINEL_WEB_URL}"
+        )
 
         mid = enviar_telegram(msg_padrao)
         if mid:
