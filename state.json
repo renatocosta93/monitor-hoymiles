@@ -1,9 +1,9 @@
 {
   "dia_ativo": true,
   "fechamento_enviado": false,
-  "data_atual": "2026-09-04",
-  "meta_kwh": 19.93,
-  "previsao_desc": "Pancadas de Chuva (15.2°C a 26.0°C, 5.4 HSP)",
+  "data_atual": "2026-09-05",
+  "meta_kwh": 18.45,
+  "previsao_desc": "Pancadas de Chuva (15.0°C a 23.4°C, 5.0 HSP)",
   "ultimo_alerta": "",
   "historico_dias": {
     "2026-08-26": 14.72,
@@ -21,25 +21,14 @@
     "2026-09-01": 7.0,
     "2026-09-02": 22.44,
     "2026-09-03": 26.39,
-    "2026-09-04": 25.47
+    "2026-09-04": 25.47,
+    "2026-09-05": 458.0
   },
-  "data_bom_dia_enviado": "2026-09-04",
+  "data_bom_dia_enviado": "2026-09-05",
   "data_fechamento_enviado": "2026-09-04",
   "mensagens_do_dia": [],
   "mensagens_armazenadas": [
-    251,
-    252,
-    253,
-    254,
-    255,
-    256,
-    257,
-    258,
-    259,
-    260,
-    261,
-    262,
-    263,
-    264
+    265,
+    266
   ]
 }
