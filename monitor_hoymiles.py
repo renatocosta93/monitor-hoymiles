@@ -90,49 +90,128 @@ def salvar_estado(estado):
     except Exception as e:
         print(f"Erro ao salvar estado: {e}")
 
-def obter_previsao_tempo():
+def obter_icone_clima(codigo):
+    if codigo in [0, 1]: return "☀️"
+    if codigo == 2: return "🌤️"
+    if codigo in [3, 45]: return "⛅"
+    if codigo in [51, 53, 55, 61, 63, 65, 80, 81, 82]: return "🌧️"
+    if codigo in [95, 96]: return "⛈️"
+    return "☀️"
+
+def obter_previsao_tempo(hora_atual_int=12, data_atual_str=""):
+    condicoes_map = {
+        0: "Céu Limpo / Ensolarado",
+        1: "Predomínio de Sol",
+        2: "Parcialmente Nublado",
+        3: "Nublado",
+        45: "Nevoeiro",
+        51: "Chuva Leve",
+        61: "Chuva Moderada",
+        80: "Pancadas de Chuva",
+        95: "Tempestade"
+    }
+
     try:
         url = (
             f"https://api.open-meteo.com/v1/forecast?latitude={LATITUDE}&longitude={LONGITUDE}"
             f"&current=weather_code,precipitation,temperature_2m"
+            f"&hourly=weather_code,temperature_2m,cloud_cover,precipitation_probability"
             f"&daily=weathercode,temperature_2m_max,temperature_2m_min,shortwave_radiation_sum"
             f"&timezone=America%2FSao_Paulo"
         )
         r = requests.get(url, timeout=10).json()
         daily = r.get("daily", {})
         current = r.get("current", {})
-        
+        hourly = r.get("hourly", {})
+
         rad_mj = daily.get("shortwave_radiation_sum", [18.0])[0]
         hsp = round(rad_mj / 3.6, 1)
         t_max = daily.get("temperature_2m_max", [28])[0]
         t_min = daily.get("temperature_2m_min", [18])[0]
-        w_code = daily.get("weathercode", [0])[0]
+        w_code_day = daily.get("weathercode", [0])[0]
 
-        cur_wcode = current.get("weather_code", w_code)
+        cur_wcode = current.get("weather_code", w_code_day)
         cur_precip = current.get("precipitation", 0.0)
+        cur_temp = current.get("temperature_2m", 25.0)
+        cur_desc = condicoes_map.get(cur_wcode, "Sol entre nuvens")
 
-        condicoes = {
-            0: "Céu Limpo / Ensolarado",
-            1: "Predomínio de Sol",
-            2: "Parcialmente Nublado",
-            3: "Nublado",
-            45: "Nevoeiro",
-            51: "Chuva Leve",
-            61: "Chuva Moderada",
-            80: "Pancadas de Chuva"
-        }
-        desc = condicoes.get(w_code, "Sol entre nuvens")
+        desc_dia = condicoes_map.get(w_code_day, "Sol entre nuvens")
         meta = round((POTENCIA_INSTALADA_WP / 1000.0) * hsp * 0.82, 2)
         if meta < 5.0: meta = 15.0
 
+        # Radar das Próximas 3 Horas
+        h_times = hourly.get("time", [])
+        h_codes = hourly.get("weather_code", [])
+        h_temps = hourly.get("temperature_2m", [])
+        h_clouds = hourly.get("cloud_cover", [])
+        h_precips = hourly.get("precipitation_probability", [])
+
+        time_map = {t: idx for idx, t in enumerate(h_times)}
+        radar_lista = []
+        clouds_futuras = []
+        precips_futuras = []
+
+        for delta in range(1, 4):
+            target_h = hora_atual_int + delta
+            if target_h <= 23:
+                key_iso = f"{data_atual_str}T{target_h:02d}:00"
+                if key_iso in time_map:
+                    idx = time_map[key_iso]
+                    c_val = h_clouds[idx] if idx < len(h_clouds) else 25
+                    p_val = h_precips[idx] if idx < len(h_precips) else 0
+                    t_val = h_temps[idx] if idx < len(h_temps) else cur_temp
+                    w_val = h_codes[idx] if idx < len(h_codes) else 0
+                    clouds_futuras.append(c_val)
+                    precips_futuras.append(p_val)
+                    radar_lista.append({
+                        "hora": f"{target_h:02d}h",
+                        "temp": round(t_val, 1),
+                        "nuvens": c_val,
+                        "chuva_prob": p_val,
+                        "wcode": w_val,
+                        "icon": obter_icone_clima(w_val)
+                    })
+
+        # Diagnóstico de Tendência
+        max_chuva = max(precips_futuras) if precips_futuras else 0
+        media_nuvens = int(sum(clouds_futuras) / len(clouds_futuras)) if clouds_futuras else 20
+
+        if max_chuva >= 40:
+            radar_tag = "Alerta de Chuva"
+            radar_cor = "#ef4444"
+            radar_cor_rgba = "rgba(239, 68, 68, 0.2)"
+            radar_status_tg = "🔴 <b>Queda Prevista / Alerta de Chuva</b>"
+            radar_desc_tg = f"Probabilidade de chuva subindo ({max_chuva}%). Espera-se queda de irradiação."
+        elif media_nuvens >= 60:
+            radar_tag = "Ritmo Moderado"
+            radar_cor = "#f59e0b"
+            radar_cor_rgba = "rgba(245, 158, 11, 0.2)"
+            radar_status_tg = "🟡 <b>Nebulosidade Parcial</b>"
+            radar_desc_tg = f"Aumento de nuvens (~{media_nuvens}% de cobertura). Produção em ritmo moderado."
+        else:
+            radar_tag = "Muito Favorável"
+            radar_cor = "#10b981"
+            radar_cor_rgba = "rgba(16, 185, 129, 0.2)"
+            radar_status_tg = "🟢 <b>Alta Irradiação / Muito Favorável</b>"
+            radar_desc_tg = "Céu limpo e baixa nebulosidade. Condições ideais para manter a usina no pico."
+
         return {
-            "desc": desc,
+            "desc": desc_dia,
             "t_max": t_max,
             "t_min": t_min,
             "hsp": hsp,
             "meta_kwh": meta,
             "cur_wcode": cur_wcode,
-            "cur_precip": cur_precip
+            "cur_precip": cur_precip,
+            "cur_temp": cur_temp,
+            "cur_desc": cur_desc,
+            "cur_icon": obter_icone_clima(cur_wcode),
+            "radar_lista": radar_lista,
+            "radar_tag": radar_tag,
+            "radar_cor": radar_cor,
+            "radar_cor_rgba": radar_cor_rgba,
+            "radar_status_tg": radar_status_tg,
+            "radar_desc_tg": radar_desc_tg
         }
     except Exception as e:
         print(f"Aviso previsão: {e}")
@@ -143,7 +222,16 @@ def obter_previsao_tempo():
             "hsp": 5.0,
             "meta_kwh": 18.5,
             "cur_wcode": 0,
-            "cur_precip": 0.0
+            "cur_precip": 0.0,
+            "cur_temp": 26.0,
+            "cur_desc": "Céu Limpo",
+            "cur_icon": "☀️",
+            "radar_lista": [],
+            "radar_tag": "Muito Favorável",
+            "radar_cor": "#10b981",
+            "radar_cor_rgba": "rgba(16, 185, 129, 0.2)",
+            "radar_status_tg": "🟢 <b>Alta Irradiação</b>",
+            "radar_desc_tg": "Condições favoráveis de geração solar."
         }
 
 # ==========================================
@@ -315,6 +403,52 @@ def gerar_painel_html(dados):
             font-variant-numeric: tabular-nums;
         }}
         .power-sub {{ color: var(--text-muted); font-size: 13px; }}
+
+        /* RADAR METEOROLÓGICO */
+        .radar-card {{
+            background: linear-gradient(135deg, #1e293b 0%, #0c1f36 100%);
+            border: 1px solid #0ea5e9;
+            padding: 14px 16px;
+        }}
+        .radar-header {{
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }}
+        .radar-title {{
+            font-size: 12px;
+            font-weight: 800;
+            text-transform: uppercase;
+            color: #7dd3fc;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }}
+        .radar-tag {{
+            font-size: 11px;
+            font-weight: 800;
+            padding: 3px 10px;
+            border-radius: 999px;
+            text-transform: uppercase;
+        }}
+        .radar-grid {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(80px, 1fr));
+            gap: 8px;
+            margin-top: 8px;
+        }}
+        .radar-block {{
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 10px;
+            padding: 8px 4px;
+            text-align: center;
+        }}
+        .radar-hour {{ font-size: 11px; color: var(--text-muted); font-weight: 700; }}
+        .radar-icon {{ font-size: 20px; margin: 3px 0; }}
+        .radar-temp {{ font-size: 14px; font-weight: 800; color: var(--text-main); }}
+        .radar-sub {{ font-size: 10px; color: #94a3b8; margin-top: 2px; }}
 
         /* PAYBACK CARD */
         .payback-card {{
@@ -628,6 +762,24 @@ def gerar_painel_html(dados):
             <div class="power-sub">{dados['eficiencia']}% da capacidade instalada ({int(POTENCIA_INSTALADA_WP)} Wp)</div>
         </div>
 
+        <!-- RADAR METEOROLÓGICO -->
+        <div class="card radar-card">
+            <div class="radar-header">
+                <div class="radar-title">
+                    <span>🌤️ Radar Meteorológico & Tendência Solar</span>
+                </div>
+                <span class="radar-tag" style="background-color: {dados['radar_cor_rgba']}; color: {dados['radar_cor']}; border: 1px solid {dados['radar_cor']};">
+                    {dados['radar_tag']}
+                </span>
+            </div>
+            <div style="font-size: 12px; color: var(--text-main); margin-bottom: 8px;">
+                Agora: <b>{dados['cur_icon']} {dados['cur_desc']} ({dados['cur_temp']}°C)</b> — {dados['radar_desc_tg']}
+            </div>
+            <div class="radar-grid">
+                {dados['radar_blocos_html']}
+            </div>
+        </div>
+
         <!-- PAYBACK CARD -->
         <div class="card payback-card">
             <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -906,8 +1058,8 @@ def main():
 
     estado = carregar_estado()
     
-    # 1. Atualização diária de previsão e reset diário de leituras horárias
-    prev = obter_previsao_tempo()
+    # 1. Atualização diária de previsão e radar
+    prev = obter_previsao_tempo(hora_int, data_str)
     if estado.get("data_atual") != data_str:
         estado["data_atual"] = data_str
         estado["leituras_horarias"] = {}
@@ -1433,6 +1585,25 @@ def main():
         led_saude_cor = "#10b981" if real_power_val > 50 else "#94a3b8"
         led_saude_ico = "🟢" if real_power_val > 50 else "⚪"
 
+    # HTML dos Blocos do Radar Meteorológico
+    radar_blocos_html = ""
+    for r_item in prev["radar_lista"]:
+        radar_blocos_html += f"""
+        <div class="radar-block">
+            <div class="radar-hour">{r_item['hora']}</div>
+            <div class="radar-icon">{r_item['icon']}</div>
+            <div class="radar-temp">{r_item['temp']}°C</div>
+            <div class="radar-sub">☁️ {r_item['nuvens']}% | 💧 {r_item['chuva_prob']}%</div>
+        </div>
+        """
+
+    if not radar_blocos_html:
+        radar_blocos_html = """
+        <div style="font-size: 11px; color: var(--text-muted); text-align: center; width: 100%; padding: 6px;">
+            Condições estáveis para o período.
+        </div>
+        """
+
     is_online = real_power_val > 5
     gerar_painel_html({
         "is_online": is_online,
@@ -1473,6 +1644,14 @@ def main():
         "pct_variacao_str": pct_variacao_str,
         "ritmo_cor": ritmo_cor,
         "ritmo_status_desc": ritmo_status_desc,
+        "cur_icon": prev["cur_icon"],
+        "cur_desc": prev["cur_desc"],
+        "cur_temp": fmt_decimal(prev["cur_temp"], 1),
+        "radar_tag": prev["radar_tag"],
+        "radar_cor": prev["radar_cor"],
+        "radar_cor_rgba": prev["radar_cor_rgba"],
+        "radar_desc_tg": prev["radar_desc_tg"],
+        "radar_blocos_html": radar_blocos_html,
         "payback_pct": fmt_br(payback_pct, 1),
         "amortizado_str": fmt_br(total_historico_econ, 2),
         "custo_sistema_str": fmt_br(CUSTO_SISTEMA, 2),
@@ -1706,6 +1885,10 @@ def main():
         msg_padrao = (
             f"☀️ <b>PAINEL SOLAR HOYMILES</b> ☀️\n"
             f"📅 <code>{hora_str}</code> | {status_icon}\n\n"
+            f"🌤️ <b>RADAR METEOROLÓGICO & TENDÊNCIA</b>\n"
+            f"• <b>Agora:</b> {prev['cur_icon']} {prev['cur_desc']} ({fmt_decimal(prev['cur_temp'], 1)}°C)\n"
+            f"• <b>Próximas Horas:</b> {prev['radar_status_tg']}\n"
+            f"↳ <i>{prev['radar_desc_tg']}</i>\n\n"
             f"{msg_bloco_ritmo}"
             f"📊 <b>GERAÇÃO ACUMULADA & RENDIMENTO</b>\n"
             f"• <b>Potência Atual:</b> <code>{fmt_decimal(real_power_val, 2)} W</code> ({fmt_br(eficiencia, 1)}% da usina)\n"
