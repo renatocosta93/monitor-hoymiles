@@ -19,7 +19,7 @@ PAINEL_WEB_URL = "https://renatocosta93.github.io/monitor-hoymiles/"
 WEBHOOK_ATUALIZAR_URL = "https://script.google.com/macros/s/AKfycbwO9ybli9NqAPft9Aa0dQNorfcZYTSmKucJUU7fBtzCIGgT-5ZKYWo2hPFz5EPkJ6PT/exec"
 
 POTENCIA_INSTALADA_WP = 4500.0       # 4.5 kWp
-TARIFA_KWH = 0.88                    # R$/kWh
+TARIFA_KWH =  1.02                   # R$/kWh
 DATA_INICIO_OPERACAO = "2026-08-20"  # Início oficial da usina
 
 LATITUDE = -23.6028
@@ -76,7 +76,8 @@ def carregar_estado():
         "meta_kwh": 18.0,
         "previsao_desc": "Ensolarado",
         "mensagens_armazenadas": [],
-        "historico_dias": {}
+        "historico_dias": {},
+        "leituras_horarias": {}
     }
 
 def salvar_estado(estado):
@@ -287,6 +288,49 @@ def gerar_painel_html(dados):
         }}
         .power-sub {{ color: var(--text-muted); font-size: 13px; }}
 
+        /* CARD DO RITMO HORÁRIO */
+        .hourly-card {{
+            background: linear-gradient(180deg, #1e293b 0%, #172554 100%);
+            border: 1px solid #2563eb;
+            padding: 14px 16px;
+        }}
+        .hourly-header {{
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }}
+        .hourly-title {{
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            color: #93c5fd;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }}
+        .hourly-light {{
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            box-shadow: 0 0 10px currentColor;
+        }}
+        .hourly-grid {{
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 10px;
+            align-items: center;
+            text-align: center;
+        }}
+        .hourly-block {{
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 10px;
+            padding: 8px 6px;
+        }}
+        .hourly-block-lbl {{ font-size: 10px; color: var(--text-muted); text-transform: uppercase; font-weight: 700; }}
+        .hourly-block-val {{ font-size: 15px; font-weight: 800; color: var(--text-main); margin-top: 2px; }}
+
         .farois-grid {{
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -450,6 +494,33 @@ def gerar_painel_html(dados):
             <div class="power-sub">{dados['eficiencia']}% da capacidade instalada ({int(POTENCIA_INSTALADA_WP)} Wp)</div>
         </div>
 
+        <!-- CARD RITMO DE PRODUÇÃO HORÁRIA -->
+        <div class="card hourly-card">
+            <div class="hourly-header">
+                <div class="hourly-title">
+                    <span>⏱️ Ritmo de Produção Horária</span>
+                </div>
+                <div class="hourly-light" style="background-color: {dados['ritmo_cor']}; color: {dados['ritmo_cor']};"></div>
+            </div>
+            <div class="hourly-grid">
+                <div class="hourly-block">
+                    <div class="hourly-block-lbl">{dados['lbl_hora_ant']}</div>
+                    <div class="hourly-block-val">{dados['kwh_hora_ant']}</div>
+                </div>
+                <div class="hourly-block">
+                    <div class="hourly-block-lbl">{dados['lbl_hora_atual']}</div>
+                    <div class="hourly-block-val">{dados['kwh_hora_atual']}</div>
+                </div>
+                <div class="hourly-block" style="border-color: {dados['ritmo_cor']};">
+                    <div class="hourly-block-lbl">Variação</div>
+                    <div class="hourly-block-val" style="color: {dados['ritmo_cor']};">{dados['pct_variacao_str']}</div>
+                </div>
+            </div>
+            <div style="font-size: 11px; color: #94a3b8; text-align: center; margin-top: 8px;">
+                Status: <b style="color: {dados['ritmo_cor']};">{dados['ritmo_status_desc']}</b>
+            </div>
+        </div>
+
         <div class="farois-grid">
             <div class="farol-card">
                 <div class="farol-luz" style="background-color: {dados['cor_farol_dia']}; color: {dados['cor_farol_dia']};"></div>
@@ -580,16 +651,17 @@ def main():
 
     print(f"🚀 Monitor Hoymiles em execução: {hora_str} (Horário de Brasília)")
     if SILENT_MODE:
-        print("🔇 Modo Silencioso ATIVADO: Apenas o painel web será atualizado. Notificações ignoradas.")
+        print("🔇 Modo Silencioso ATIVADO: Apenas o painel web será atualizado.")
 
     meses_pt = ["", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"]
     nome_mes = f"{meses_pt[mes_atual]}/{ano_atual}"
 
     estado = carregar_estado()
     
-    # 1. Atualização diária de previsão
+    # 1. Atualização diária de previsão e reset diário de leituras horárias
     if estado.get("data_atual") != data_str:
         estado["data_atual"] = data_str
+        estado["leituras_horarias"] = {}
         prev = obter_previsao_tempo()
         estado["meta_kwh"] = prev["meta_kwh"]
         estado["previsao_desc"] = f"{prev['desc']} ({prev['t_min']}°C a {prev['t_max']}°C, {prev['hsp']} HSP)"
@@ -803,6 +875,98 @@ def main():
                 historico[ch] = parcela
 
     estado["historico_dias"] = historico
+
+    # ==========================================
+    # CÁLCULO DO RITMO HORÁRIO DE PRODUÇÃO
+    # ==========================================
+    leituras = estado.get("leituras_horarias", {})
+    horas_ordenadas = sorted([int(h) for h in leituras.keys() if int(h) < hora_int])
+
+    lbl_hora_ant = "Hora Anterior"
+    lbl_hora_atual = f"{hora_int-1:02d}h às {hora_int:02d}h"
+    kwh_hora_ant = "--"
+    kwh_hora_atual = "--"
+    pct_variacao_str = "--"
+    ritmo_cor = "#f59e0b"
+    ritmo_farol = "🟡"
+    ritmo_status_desc = "Aguardando comparativo"
+    msg_bloco_ritmo = ""
+
+    if len(horas_ordenadas) >= 2:
+        h_penultima = f"{horas_ordenadas[-2]:02d}"
+        h_ultima = f"{horas_ordenadas[-1]:02d}"
+
+        val_penultima = float(leituras[h_penultima])
+        val_ultima = float(leituras[h_ultima])
+
+        g_ant = max(0.0, round(val_ultima - val_penultima, 2))
+        g_atual = max(0.0, round(today_kwh - val_ultima, 2))
+
+        lbl_hora_ant = f"{h_penultima}h às {h_ultima}h"
+        lbl_hora_atual = f"{h_ultima}h às {hora_int:02d}h"
+        kwh_hora_ant = f"{fmt_br(g_ant, 2)} kWh"
+        kwh_hora_atual = f"{fmt_br(g_atual, 2)} kWh"
+
+        if g_ant > 0.02:
+            pct_var = round(((g_atual - g_ant) / g_ant) * 100, 1)
+        elif g_atual > 0:
+            pct_var = 100.0
+        else:
+            pct_var = 0.0
+
+        if pct_var > 3.0:
+            ritmo_cor = "#10b981"
+            ritmo_farol = "🟢"
+            pct_variacao_str = f"+{fmt_br(pct_var, 1)}%"
+            ritmo_status_desc = "Curva em ascensão"
+        elif pct_var < -3.0:
+            ritmo_cor = "#ef4444"
+            ritmo_farol = "🔴"
+            pct_variacao_str = f"{fmt_br(pct_var, 1)}%"
+            ritmo_status_desc = "Redução / Nuvens"
+        else:
+            ritmo_cor = "#f59e0b"
+            ritmo_farol = "🟡"
+            pct_variacao_str = f"{fmt_br(pct_var, 1)}%"
+            ritmo_status_desc = "Geração estável"
+
+        msg_bloco_ritmo = (
+            f"⏱️ <b>DESEMPENHO DA ÚLTIMA HORA</b>\n"
+            f"• <b>{lbl_hora_ant}:</b> <code>{fmt_br(g_ant, 2)} kWh</code>\n"
+            f"• <b>{lbl_hora_atual}:</b> <code>{fmt_br(g_atual, 2)} kWh</code> = {ritmo_farol} <code>{pct_variacao_str}</code> <i>({ritmo_status_desc})</i>\n\n"
+        )
+    elif len(horas_ordenadas) == 1:
+        h_ultima = f"{horas_ordenadas[-1]:02d}"
+        val_ultima = float(leituras[h_ultima])
+        g_atual = max(0.0, round(today_kwh - val_ultima, 2))
+
+        lbl_hora_ant = f"{h_ultima}h"
+        lbl_hora_atual = f"{h_ultima}h às {hora_int:02d}h"
+        kwh_hora_ant = "0,00 kWh"
+        kwh_hora_atual = f"{fmt_br(g_atual, 2)} kWh"
+        pct_variacao_str = "Inicial"
+        ritmo_cor = "#10b981"
+        ritmo_farol = "🟢"
+        ritmo_status_desc = "Início da curva solar"
+
+        msg_bloco_ritmo = (
+            f"⏱️ <b>DESEMPENHO DA ÚLTIMA HORA</b>\n"
+            f"• <b>{lbl_hora_atual}:</b> <code>{fmt_br(g_atual, 2)} kWh</code> <i>(Início da curva solar)</i>\n\n"
+        )
+    else:
+        kwh_hora_atual = f"{fmt_br(today_kwh, 2)} kWh"
+        ritmo_cor = "#f59e0b"
+        ritmo_status_desc = "Primeira leitura do dia"
+        msg_bloco_ritmo = (
+            f"⏱️ <b>DESEMPENHO DA ÚLTIMA HORA</b>\n"
+            f"• <b>Primeira leitura do dia:</b> <code>{fmt_br(today_kwh, 2)} kWh</code> <i>(Aguardando próximo ciclo)</i>\n\n"
+        )
+
+    # Armazena o acumulado da hora atual se for leitura regular com geração
+    if not SILENT_MODE and today_kwh > 0:
+        leituras[f"{hora_int:02d}"] = round(today_kwh, 2)
+        estado["leituras_horarias"] = leituras
+
     salvar_estado(estado)
 
     dias_no_mes = calendar.monthrange(ano_atual, mes_atual)[1]
@@ -912,6 +1076,13 @@ def main():
         "recorde_dia_texto": recorde_dia_str,
         "recorde_kwh": fmt_br(recorde_kwh, 2),
         "recorde_economia": fmt_br(recorde_kwh * TARIFA_KWH, 2),
+        "lbl_hora_ant": lbl_hora_ant,
+        "lbl_hora_atual": lbl_hora_atual,
+        "kwh_hora_ant": kwh_hora_ant,
+        "kwh_hora_atual": kwh_hora_atual,
+        "pct_variacao_str": pct_variacao_str,
+        "ritmo_cor": ritmo_cor,
+        "ritmo_status_desc": ritmo_status_desc,
         "mapa_eletrico_html": mapa_html
     })
 
@@ -919,7 +1090,7 @@ def main():
     # PARADA ANTECIPADA SE FOR EXECUÇÃO SILENCIOSA
     # ==========================================
     if SILENT_MODE:
-        print("🔇 Execução silenciosa via botão concluída: Painel web index.html atualizado. Nenhuma mensagem enviada ao Telegram.")
+        print("🔇 Execução silenciosa via botão concluída: Painel web index.html atualizado. Nenhuma notificação disparada.")
         print("🏁 Ciclo finalizado com sucesso.")
         return
 
@@ -1096,7 +1267,8 @@ def main():
         msg_padrao = (
             f"☀️ <b>PAINEL SOLAR HOYMILES</b> ☀️\n"
             f"📅 <code>{hora_str}</code> | {status_icon}\n\n"
-            f"📊 <b>GERAÇÃO & RENDIMENTO</b>\n"
+            f"{msg_bloco_ritmo}"
+            f"📊 <b>GERAÇÃO ACUMULADA & RENDIMENTO</b>\n"
             f"• <b>Potência Atual:</b> <code>{fmt_decimal(real_power_val, 2)} W</code> ({fmt_br(eficiencia, 1)}% da usina)\n"
             f"• <b>Hoje:</b> <code>{today_display}</code>{pico_str}\n"
             f"• <b>Rendimento Diário (HSP):</b> <code>{fmt_br(hsp, 2)} h</code>\n"
