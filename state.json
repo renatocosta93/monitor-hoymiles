@@ -26,7 +26,7 @@
     "2026-09-06": 5.39
   },
   "data_bom_dia_enviado": "2026-09-06",
-  "data_fechamento_enviado": "2026-09-05",
+  "data_fechamento_enviado": "2026-09-06",
   "mensagens_do_dia": [],
   "mensagens_armazenadas": [
     280,
@@ -40,7 +40,9 @@
     288,
     289,
     290,
-    291
+    291,
+    292,
+    293
   ],
   "leituras_horarias": {
     "08": 91.0,
@@ -53,7 +55,8 @@
     "15": 4.84,
     "16": 5.16,
     "17": 5.37,
-    "18": 5.39
+    "18": 5.39,
+    "19": 5.39
   },
   "clima_horas_hoje": {
     "08": "chuva",
