@@ -23,7 +23,7 @@
     "2026-09-03": 26.39,
     "2026-09-04": 25.47,
     "2026-09-05": 6.83,
-    "2026-09-06": 322.0
+    "2026-09-06": 1.11
   },
   "data_bom_dia_enviado": "2026-09-06",
   "data_fechamento_enviado": "2026-09-05",
@@ -31,15 +31,18 @@
   "mensagens_armazenadas": [
     280,
     281,
-    282
+    282,
+    283
   ],
   "leituras_horarias": {
     "08": 91.0,
-    "09": 322.0
+    "09": 322.0,
+    "10": 1.11
   },
   "clima_horas_hoje": {
     "08": "chuva",
-    "09": "chuva"
+    "09": "chuva",
+    "10": "chuva"
   },
   "historico_clima": {
     "2026-09-05": {
@@ -49,10 +52,10 @@
       "predominio": "nublado"
     },
     "2026-09-06": {
-      "sol": 8,
-      "nublado": 3,
-      "chuva": 1,
-      "predominio": "sol"
+      "sol": 0,
+      "nublado": 0,
+      "chuva": 3,
+      "predominio": "chuva"
     }
   }
 }
