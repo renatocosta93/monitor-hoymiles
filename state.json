@@ -27,7 +27,7 @@
     "2026-09-07": 7.73
   },
   "data_bom_dia_enviado": "2026-09-07",
-  "data_fechamento_enviado": "2026-09-06",
+  "data_fechamento_enviado": "2026-09-07",
   "mensagens_do_dia": [],
   "mensagens_armazenadas": [
     294,
@@ -41,7 +41,9 @@
     302,
     303,
     304,
-    305
+    305,
+    306,
+    307
   ],
   "leituras_horarias": {
     "08": 401.0,
@@ -54,7 +56,8 @@
     "15": 6.97,
     "16": 7.38,
     "17": 7.68,
-    "18": 7.73
+    "18": 7.73,
+    "19": 7.73
   },
   "clima_horas_hoje": {
     "08": "nublado",
