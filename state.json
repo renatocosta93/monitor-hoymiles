@@ -35,7 +35,8 @@
     309,
     310,
     311,
-    312
+    312,
+    313
   ],
   "leituras_horarias": {
     "08": 249.0,
@@ -47,7 +48,8 @@
     "08": "nublado",
     "09": "nublado",
     "10": "nublado",
-    "11": "nublado"
+    "11": "nublado",
+    "12": "nublado"
   },
   "historico_clima": {
     "2026-09-05": {
@@ -70,7 +72,7 @@
     },
     "2026-09-08": {
       "sol": 0,
-      "nublado": 4,
+      "nublado": 5,
       "chuva": 0,
       "predominio": "nublado"
     }
