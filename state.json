@@ -31,7 +31,7 @@
     "2026-09-11": 18.65
   },
   "data_bom_dia_enviado": "2026-09-11",
-  "data_fechamento_enviado": "2026-09-10",
+  "data_fechamento_enviado": "2026-09-11",
   "mensagens_do_dia": [],
   "mensagens_armazenadas": [
     351,
@@ -46,7 +46,9 @@
     360,
     361,
     362,
-    363
+    363,
+    364,
+    365
   ],
   "leituras_horarias": {
     "07": 10.0,
@@ -60,7 +62,8 @@
     "15": 16.89,
     "16": 18.18,
     "17": 18.56,
-    "18": 18.65
+    "18": 18.65,
+    "19": 18.65
   },
   "clima_horas_hoje": {
     "07": "sol",
