@@ -33,7 +33,7 @@
     "2026-09-13": 4.42
   },
   "data_bom_dia_enviado": "2026-09-13",
-  "data_fechamento_enviado": "2026-09-12",
+  "data_fechamento_enviado": "2026-09-13",
   "mensagens_do_dia": [],
   "mensagens_armazenadas": [
     381,
@@ -48,7 +48,9 @@
     390,
     391,
     392,
-    393
+    393,
+    394,
+    395
   ],
   "leituras_horarias": {
     "07": 16.0,
@@ -62,7 +64,8 @@
     "15": 3.7,
     "16": 4.13,
     "17": 4.38,
-    "18": 4.42
+    "18": 4.42,
+    "19": 4.42
   },
   "clima_horas_hoje": {
     "07": "chuva",
