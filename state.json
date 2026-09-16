@@ -36,7 +36,7 @@
     "2026-09-16": 19.16
   },
   "data_bom_dia_enviado": "2026-09-16",
-  "data_fechamento_enviado": "2026-09-15",
+  "data_fechamento_enviado": "2026-09-16",
   "mensagens_do_dia": [],
   "mensagens_armazenadas": [
     426,
@@ -51,7 +51,9 @@
     435,
     436,
     437,
-    438
+    438,
+    439,
+    440
   ],
   "leituras_horarias": {
     "07": 59.0,
@@ -65,7 +67,8 @@
     "15": 17.08,
     "16": 18.64,
     "17": 19.06,
-    "18": 19.16
+    "18": 19.16,
+    "19": 19.16
   },
   "clima_horas_hoje": {
     "07": "nublado",
