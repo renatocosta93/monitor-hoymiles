@@ -44,7 +44,8 @@
   "mensagens_armazenadas": [
     471,
     472,
-    473
+    473,
+    474
   ],
   "leituras_horarias": {
     "07": 74.0,
@@ -52,7 +53,8 @@
   },
   "clima_horas_hoje": {
     "07": "nublado",
-    "08": "nublado"
+    "08": "nublado",
+    "09": "nublado"
   },
   "historico_clima": {
     "2026-09-05": {
@@ -140,10 +142,10 @@
       "predominio": "nublado"
     },
     "2026-09-19": {
-      "sol": 8,
+      "sol": 0,
       "nublado": 3,
-      "chuva": 1,
-      "predominio": "sol"
+      "chuva": 0,
+      "predominio": "nublado"
     }
   }
 }
