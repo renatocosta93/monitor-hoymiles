@@ -51,7 +51,8 @@
     505,
     506,
     507,
-    508
+    508,
+    509
   ],
   "leituras_horarias": {
     "07": 184.0,
@@ -69,7 +70,8 @@
     "10": "sol",
     "11": "sol",
     "12": "sol",
-    "13": "sol"
+    "13": "sol",
+    "14": "sol"
   },
   "historico_clima": {
     "2026-09-05": {
@@ -169,7 +171,7 @@
       "predominio": "chuva"
     },
     "2026-09-21": {
-      "sol": 7,
+      "sol": 8,
       "nublado": 0,
       "chuva": 0,
       "predominio": "sol"
