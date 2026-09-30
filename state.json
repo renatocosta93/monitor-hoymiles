@@ -50,7 +50,7 @@
     "2026-09-30": 25.09
   },
   "data_bom_dia_enviado": "2026-09-30",
-  "data_fechamento_enviado": "2026-09-29",
+  "data_fechamento_enviado": "2026-09-30",
   "mensagens_do_dia": [],
   "mensagens_armazenadas": [
     636,
@@ -65,7 +65,9 @@
     645,
     646,
     647,
-    648
+    648,
+    649,
+    650
   ],
   "leituras_horarias": {
     "07": 319.0,
@@ -79,7 +81,8 @@
     "15": 23.25,
     "16": 24.54,
     "17": 24.91,
-    "18": 25.09
+    "18": 25.09,
+    "19": 25.09
   },
   "clima_horas_hoje": {
     "07": "sol",
