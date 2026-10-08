@@ -58,7 +58,7 @@
     "2026-10-08": 28.63
   },
   "data_bom_dia_enviado": "2026-10-08",
-  "data_fechamento_enviado": "2026-10-07",
+  "data_fechamento_enviado": "2026-10-08",
   "mensagens_do_dia": [],
   "mensagens_armazenadas": [
     754,
@@ -73,7 +73,9 @@
     763,
     764,
     765,
-    766
+    766,
+    767,
+    768
   ],
   "leituras_horarias": {
     "07": 0.57,
@@ -87,7 +89,8 @@
     "15": 26.87,
     "16": 28.25,
     "17": 28.52,
-    "18": 28.63
+    "18": 28.63,
+    "19": 28.63
   },
   "clima_horas_hoje": {
     "07": "sol",
