@@ -1,9 +1,9 @@
 {
   "dia_ativo": true,
   "fechamento_enviado": false,
-  "data_atual": "2026-10-24",
-  "meta_kwh": 16.97,
-  "previsao_desc": "Sol entre nuvens (16.0°C a 24.8°C, 4.6 HSP)",
+  "data_atual": "2026-10-25",
+  "meta_kwh": 10.7,
+  "previsao_desc": "Tempestade (14.8°C a 21.1°C, 2.9 HSP)",
   "ultimo_alerta": "",
   "historico_dias": {
     "2026-08-26": 14.72,
@@ -71,56 +71,21 @@
     "2026-10-21": 18.7,
     "2026-10-22": 13.62,
     "2026-10-23": 11.63,
-    "2026-10-24": 11.03
+    "2026-10-24": 11.03,
+    "2026-10-25": 257.0
   },
-  "data_bom_dia_enviado": "2026-10-24",
+  "data_bom_dia_enviado": "2026-10-25",
   "data_fechamento_enviado": "2026-10-24",
   "mensagens_do_dia": [],
   "mensagens_armazenadas": [
-    994,
-    995,
-    996,
-    997,
-    998,
-    999,
-    1000,
-    1001,
-    1002,
-    1003,
-    1004,
-    1005,
-    1006,
-    1007,
-    1008
+    1009,
+    1010
   ],
   "leituras_horarias": {
-    "07": 0.66,
-    "08": 1.26,
-    "09": 2.14,
-    "10": 2.67,
-    "11": 3.03,
-    "12": 4.67,
-    "13": 6.0,
-    "14": 7.58,
-    "15": 9.19,
-    "16": 10.12,
-    "17": 10.82,
-    "18": 11.02,
-    "19": 11.03
+    "07": 257.0
   },
   "clima_horas_hoje": {
-    "07": "nublado",
-    "08": "chuva",
-    "09": "nublado",
-    "10": "nublado",
-    "11": "chuva",
-    "12": "chuva",
-    "13": "chuva",
-    "14": "sol",
-    "15": "nublado",
-    "16": "nublado",
-    "17": "nublado",
-    "18": "nublado"
+    "07": "chuva"
   },
   "historico_clima": {
     "2026-09-05": {
@@ -422,6 +387,12 @@
       "nublado": 7,
       "chuva": 4,
       "predominio": "nublado"
+    },
+    "2026-10-25": {
+      "sol": 8,
+      "nublado": 3,
+      "chuva": 1,
+      "predominio": "sol"
     }
   }
 }
