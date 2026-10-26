@@ -73,20 +73,23 @@
     "2026-10-23": 11.63,
     "2026-10-24": 11.03,
     "2026-10-25": 7.17,
-    "2026-10-26": 197.0
+    "2026-10-26": 0.61
   },
   "data_bom_dia_enviado": "2026-10-26",
   "data_fechamento_enviado": "2026-10-25",
   "mensagens_do_dia": [],
   "mensagens_armazenadas": [
     1024,
-    1025
+    1025,
+    1026
   ],
   "leituras_horarias": {
-    "07": 197.0
+    "07": 197.0,
+    "08": 0.61
   },
   "clima_horas_hoje": {
-    "07": "nublado"
+    "07": "nublado",
+    "08": "nublado"
   },
   "historico_clima": {
     "2026-09-05": {
@@ -396,10 +399,10 @@
       "predominio": "chuva"
     },
     "2026-10-26": {
-      "sol": 8,
-      "nublado": 3,
-      "chuva": 1,
-      "predominio": "sol"
+      "sol": 1,
+      "nublado": 5,
+      "chuva": 6,
+      "predominio": "chuva"
     }
   }
 }
