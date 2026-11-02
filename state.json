@@ -87,13 +87,15 @@
   "mensagens_do_dia": [],
   "mensagens_armazenadas": [
     1128,
-    1129
+    1129,
+    1130
   ],
   "leituras_horarias": {
     "07": 264.0
   },
   "clima_horas_hoje": {
-    "07": "sol"
+    "07": "sol",
+    "08": "nublado"
   },
   "historico_clima": {
     "2026-09-05": {
@@ -445,9 +447,9 @@
       "predominio": "chuva"
     },
     "2026-11-02": {
-      "sol": 8,
-      "nublado": 3,
-      "chuva": 1,
+      "sol": 1,
+      "nublado": 1,
+      "chuva": 0,
       "predominio": "sol"
     }
   }
