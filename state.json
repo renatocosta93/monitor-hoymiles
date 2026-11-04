@@ -82,20 +82,23 @@
     "2026-11-01": 21.34,
     "2026-11-02": 8.94,
     "2026-11-03": 30.83,
-    "2026-11-04": 2.76
+    "2026-11-04": 6.16
   },
   "data_bom_dia_enviado": "2026-11-04",
   "data_fechamento_enviado": "2026-11-03",
   "mensagens_do_dia": [],
   "mensagens_armazenadas": [
     1160,
-    1161
+    1161,
+    1162
   ],
   "leituras_horarias": {
-    "08": 2.76
+    "08": 2.76,
+    "09": 6.16
   },
   "clima_horas_hoje": {
-    "08": "sol"
+    "08": "sol",
+    "09": "sol"
   },
   "historico_clima": {
     "2026-09-05": {
