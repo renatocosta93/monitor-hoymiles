@@ -461,7 +461,7 @@
         
                 <span class="status-text">Online (Gerando)</span>
             </div>
-            <p class="location">📍 Vargem Grande Paulista - SP | Atualizado às 10/11/2026 - 11:00</p>
+            <p class="location">📍 Vargem Grande Paulista - SP | Atualizado às 10/11/2026 - 12:03</p>
             
             <div class="btn-sync-wrapper">
                 <button id="btnAtualizar" class="btn-sync" onclick="solicitarAtualizacao()">
@@ -472,8 +472,8 @@
 
         <div class="card power-card-compact">
             <div class="stat-label">Potência Instantânea de Geração</div>
-            <div class="power-val">3707.20 <span style="font-size: 20px;">W</span></div>
-            <div class="power-sub">82,4% da capacidade instalada (4500 Wp)</div>
+            <div class="power-val">1567.70 <span style="font-size: 20px;">W</span></div>
+            <div class="power-sub">34,8% da capacidade instalada (4500 Wp)</div>
         </div>
 
         <!-- RADAR METEOROLÓGICO -->
@@ -487,29 +487,29 @@
                 </span>
             </div>
             <div style="font-size: 12px; color: var(--text-main); margin-bottom: 8px;">
-                Agora: <b>☀️ Predomínio de Sol (21.0°C)</b> — Céu limpo e baixa nebulosidade. Condições ideais para manter a usina no pico.
+                Agora: <b>⛅ Nublado (21.2°C)</b> — Céu limpo e baixa nebulosidade. Condições ideais para manter a usina no pico.
             </div>
             <div class="radar-grid">
                 
         <div class="radar-block">
-            <div class="radar-hour">12h</div>
-            <div class="radar-icon">🌤️</div>
-            <div class="radar-temp">21.4°C</div>
-            <div class="radar-sub">☁️ 59% | 💧 8%</div>
-        </div>
-        
-        <div class="radar-block">
             <div class="radar-hour">13h</div>
-            <div class="radar-icon">🌤️</div>
+            <div class="radar-icon">⛅</div>
             <div class="radar-temp">22.1°C</div>
-            <div class="radar-sub">☁️ 62% | 💧 15%</div>
+            <div class="radar-sub">☁️ 84% | 💧 15%</div>
         </div>
         
         <div class="radar-block">
             <div class="radar-hour">14h</div>
+            <div class="radar-icon">🌤️</div>
+            <div class="radar-temp">22.0°C</div>
+            <div class="radar-sub">☁️ 51% | 💧 22%</div>
+        </div>
+        
+        <div class="radar-block">
+            <div class="radar-hour">15h</div>
             <div class="radar-icon">☀️</div>
-            <div class="radar-temp">22.1°C</div>
-            <div class="radar-sub">☁️ 35% | 💧 22%</div>
+            <div class="radar-temp">22.3°C</div>
+            <div class="radar-sub">☁️ 25% | 💧 25%</div>
         </div>
         
             </div>
@@ -529,8 +529,8 @@
                 </div>
             </div>
             <div style="display: flex; justify-content: space-between; font-size: 12px; color: var(--text-muted); margin-top: 4px;">
-                <span>Amortizado: <b style="color: #ffffff;">R$ 1.246,54</b> de R$ 13.400,00</span>
-                <span>Saldo: <b style="color: #fca5a5;">R$ 12.153,46</b></span>
+                <span>Amortizado: <b style="color: #ffffff;">R$ 1.249,33</b> de R$ 13.400,00</span>
+                <span>Saldo: <b style="color: #fca5a5;">R$ 12.150,67</b></span>
             </div>
             <div style="font-size: 11px; color: #a7f3d0; margin-top: 6px;">
                 ⏳ Prazo restante estimado: <b>~2,1 anos</b> <i>(Ritmo diário atual)</i>
@@ -560,24 +560,24 @@
                 <div class="hourly-title">
                     <span>⏱️ Ritmo de Produção Horária</span>
                 </div>
-                <div class="hourly-light" style="background-color: #ef4444; color: #ef4444;"></div>
+                <div class="hourly-light" style="background-color: #f59e0b; color: #f59e0b;"></div>
             </div>
             <div class="hourly-grid">
-                <div class="hourly-block">
-                    <div class="hourly-block-lbl">09h às 10h</div>
-                    <div class="hourly-block-val">3,23 kWh</div>
-                </div>
                 <div class="hourly-block">
                     <div class="hourly-block-lbl">10h às 11h</div>
                     <div class="hourly-block-val">2,78 kWh</div>
                 </div>
-                <div class="hourly-block" style="border-color: #ef4444;">
+                <div class="hourly-block">
+                    <div class="hourly-block-lbl">11h às 12h</div>
+                    <div class="hourly-block-val">2,73 kWh</div>
+                </div>
+                <div class="hourly-block" style="border-color: #f59e0b;">
                     <div class="hourly-block-lbl">Variação</div>
-                    <div class="hourly-block-val" style="color: #ef4444;">-13,9%</div>
+                    <div class="hourly-block-val" style="color: #f59e0b;">-1,8%</div>
                 </div>
             </div>
             <div style="font-size: 11px; color: #94a3b8; text-align: center; margin-top: 8px;">
-                Status: <b style="color: #ef4444;">Redução por nebulosidade</b>
+                Status: <b style="color: #f59e0b;">Geração estável</b>
             </div>
         </div>
 
@@ -609,15 +609,15 @@
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
                 <div>
                     <div style="font-size: 11px; color: var(--text-muted);">CO₂ Mitigado (Total)</div>
-                    <div style="font-size: 16px; font-weight: 800; color: #ffffff;">513,3 kg</div>
+                    <div style="font-size: 16px; font-weight: 800; color: #ffffff;">514,4 kg</div>
                 </div>
                 <div>
                     <div style="font-size: 11px; color: var(--text-muted);">Árvores Salvas</div>
-                    <div style="font-size: 16px; font-weight: 800; color: #6ee7b7;">~28,5 🌳</div>
+                    <div style="font-size: 16px; font-weight: 800; color: #6ee7b7;">~28,6 🌳</div>
                 </div>
             </div>
             <div style="font-size: 11px; color: #d1fae5; margin-top: 6px;">
-                🍃 Hoje: <b>5,09 kg</b> de emissões de carbono neutralizadas.
+                🍃 Hoje: <b>6,24 kg</b> de emissões de carbono neutralizadas.
             </div>
         </div>
 
@@ -630,40 +630,40 @@
                 Janela Monitorada: 06h00 às 18h00 (12h úteis de sol por dia)
             </div>
             <div class="climate-progress-bar">
-                <div class="climate-seg-sol" style="width: 36.6%;" title="Sol: 36.6%"></div>
-                <div class="climate-seg-nublado" style="width: 34.8%;" title="Nublado: 34.8%"></div>
-                <div class="climate-seg-chuva" style="width: 28.6%;" title="Chuva: 28.6%"></div>
+                <div class="climate-seg-sol" style="width: 36.3%;" title="Sol: 36.3%"></div>
+                <div class="climate-seg-nublado" style="width: 35.4%;" title="Nublado: 35.4%"></div>
+                <div class="climate-seg-chuva" style="width: 28.3%;" title="Chuva: 28.3%"></div>
             </div>
             <div class="climate-grid">
                 <div class="climate-box">
                     <span class="climate-box-title" style="color: #f59e0b;">☀️ Sol Pleno</span>
                     <div class="climate-box-val">4d (41h)</div>
-                    <span class="climate-box-sub">36.6% do mês</span>
+                    <span class="climate-box-sub">36.3% do mês</span>
                 </div>
                 <div class="climate-box">
                     <span class="climate-box-title" style="color: #94a3b8;">⛅ Nublado</span>
-                    <div class="climate-box-val">3d (39h)</div>
-                    <span class="climate-box-sub">34.8% do mês</span>
+                    <div class="climate-box-val">3d (40h)</div>
+                    <span class="climate-box-sub">35.4% do mês</span>
                 </div>
                 <div class="climate-box">
                     <span class="climate-box-title" style="color: #60a5fa;">🌧️ Chuva</span>
                     <div class="climate-box-val">3d (32h)</div>
-                    <span class="climate-box-sub">28.6% do mês</span>
+                    <span class="climate-box-sub">28.3% do mês</span>
                 </div>
             </div>
             <div style="font-size: 11px; color: #cbd5e1; text-align: center; margin-top: 8px;">
-                Aproveitamento Solar Útil: <b style="color: #10b981;">52.3%</b> do período
+                Aproveitamento Solar Útil: <b style="color: #10b981;">52.2%</b> do período
             </div>
         </div>
 
         <div class="farois-grid">
             <div class="farol-card">
-                <div class="farol-luz" style="background-color: #ef4444; color: #ef4444;"></div>
+                <div class="farol-luz" style="background-color: #f59e0b; color: #f59e0b;"></div>
                 <div class="farol-info">
                     <span class="farol-title">Meta Diária</span>
                     <div class="farol-inline">
-                        <span class="farol-kwh-line">12,12 / 24,72 kWh</span>
-                        <span class="farol-pct-tag" style="color: #ef4444;">49,0%</span>
+                        <span class="farol-kwh-line">14,85 / 24,72 kWh</span>
+                        <span class="farol-pct-tag" style="color: #f59e0b;">60,1%</span>
                     </div>
                 </div>
             </div>
@@ -691,13 +691,13 @@
         <div class="grid-cards">
             <div class="card">
                 <div class="stat-label">Geração de Hoje</div>
-                <div class="stat-val">12,12 kWh</div>
-                <div class="stat-sub">Economia: R$ 12,36 | Pico: 3.707 W</div>
+                <div class="stat-val">14,85 kWh</div>
+                <div class="stat-sub">Economia: R$ 15,14 | Pico: 1.568 W</div>
             </div>
             <div class="card">
                 <div class="stat-label">Acumulado no Mês</div>
                 <div class="stat-val">158,05 <span style="font-size: 14px;">kWh</span></div>
-                <div class="stat-sub">Economia: R$ 161,21 | 2,69 HSP</div>
+                <div class="stat-sub">Economia: R$ 161,21 | 3,30 HSP</div>
             </div>
         </div>
 
@@ -716,7 +716,7 @@
                 </div>
                 <div class="dtu-item">
                     <span class="dtu-item-title">Última Sincronização</span>
-                    <span class="dtu-item-val">🕒 10/11/2026 - 11:00</span>
+                    <span class="dtu-item-val">🕒 10/11/2026 - 12:03</span>
                     <span class="dtu-item-sub">Status: Nuvem Hoymiles OK</span>
                 </div>
             </div>
@@ -730,63 +730,63 @@
             <div class="topology-container">
                 <div class="topo-node-total">
                     <div class="topo-total-title">Total da Usina</div>
-                    <div class="topo-total-val">3707.20 W</div>
+                    <div class="topo-total-val">1567.70 W</div>
                 </div>
                 <div class="topo-branch-line"></div>
                 <div class="topo-inverters-wrapper">
                     
         <div class="topo-inverter-col">
             <div class="topo-inv-box">
-                <div class="topo-inv-pow">1927.7 W</div>
+                <div class="topo-inv-pow">815.2 W</div>
                 <div class="topo-inv-sn">Inversor 1: 1424A384C2EA</div>
             </div>
             <div class="topo-panels-stack">
         
                 <div class="topo-panel-box">
                     <span class="topo-panel-id">📦 84C2EA-1</span>
-                    <span class="topo-panel-pow">926.8 W</span>
+                    <span class="topo-panel-pow">391.9 W</span>
                 </div>
             
                 <div class="topo-panel-box">
                     <span class="topo-panel-id">📦 84C2EA-2</span>
-                    <span class="topo-panel-pow">556.1 W</span>
+                    <span class="topo-panel-pow">235.2 W</span>
                 </div>
             
                 <div class="topo-panel-box">
                     <span class="topo-panel-id">📦 84C2EA-3</span>
-                    <span class="topo-panel-pow">481.9 W</span>
+                    <span class="topo-panel-pow">203.8 W</span>
                 </div>
             
                 <div class="topo-panel-box">
                     <span class="topo-panel-id">📦 84C2EA-4</span>
-                    <span class="topo-panel-pow">444.9 W</span>
+                    <span class="topo-panel-pow">188.1 W</span>
                 </div>
             </div></div>
         <div class="topo-inverter-col">
             <div class="topo-inv-box">
-                <div class="topo-inv-pow">1779.5 W</div>
+                <div class="topo-inv-pow">752.5 W</div>
                 <div class="topo-inv-sn">Inversor 2: 1424A3849A18</div>
             </div>
             <div class="topo-panels-stack">
         
                 <div class="topo-panel-box">
                     <span class="topo-panel-id">📦 849A18-1</span>
-                    <span class="topo-panel-pow">741.4 W</span>
+                    <span class="topo-panel-pow">313.5 W</span>
                 </div>
             
                 <div class="topo-panel-box">
                     <span class="topo-panel-id">📦 849A18-2</span>
-                    <span class="topo-panel-pow">519.0 W</span>
+                    <span class="topo-panel-pow">219.5 W</span>
                 </div>
             
                 <div class="topo-panel-box">
                     <span class="topo-panel-id">📦 849A18-3</span>
-                    <span class="topo-panel-pow">444.9 W</span>
+                    <span class="topo-panel-pow">188.1 W</span>
                 </div>
             
                 <div class="topo-panel-box">
                     <span class="topo-panel-id">📦 849A18-4</span>
-                    <span class="topo-panel-pow">519.0 W</span>
+                    <span class="topo-panel-pow">219.5 W</span>
                 </div>
             </div></div>
                 </div>
