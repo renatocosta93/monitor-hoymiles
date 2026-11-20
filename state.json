@@ -101,7 +101,7 @@
     "2026-11-20": 29.28
   },
   "data_bom_dia_enviado": "2026-11-20",
-  "data_fechamento_enviado": "2026-11-19",
+  "data_fechamento_enviado": "2026-11-20",
   "mensagens_do_dia": [],
   "mensagens_armazenadas": [
     1396,
@@ -116,7 +116,9 @@
     1405,
     1406,
     1407,
-    1408
+    1408,
+    1409,
+    1410
   ],
   "leituras_horarias": {
     "07": 1.41,
@@ -130,7 +132,8 @@
     "15": 27.45,
     "16": 28.88,
     "17": 29.25,
-    "18": 29.28
+    "18": 29.28,
+    "19": 29.28
   },
   "clima_horas_hoje": {
     "07": "sol",
